@@ -110,3 +110,17 @@ test('memory never writes beyond an extremely small byte budget', () => {
   memory.recordWorkflow('tiny', 'app|window', [{ keys: ['ESC'] }]);
   assert.ok(fs.statSync(file).size <= 2);
 });
+
+test('organization proposals persist separately and never mutate workflows', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-proposal-'));
+  const file = path.join(dir, 'memory.json');
+  const memory = new MemoryStore(file);
+  memory.recordWorkflow('keep me', 'app|window', [{ keys: ['ESC'] }]);
+  memory.saveOrganizationProposal('app|window', { model: 'organizer', operations: [{ op: 'archive', name: 'keep me' }] });
+  assert.equal(memory.listWorkflows('app|window').length, 1);
+  const loaded = new MemoryStore(file);
+  assert.equal(loaded.getOrganizationProposal('app|window').operations[0].name, 'keep me');
+  assert.equal(loaded.stats().organization.pendingProposals, 1);
+  loaded.clearOrganizationProposal('app|window');
+  assert.equal(loaded.stats().organization.pendingProposals, 0);
+});

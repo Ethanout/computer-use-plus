@@ -21,6 +21,7 @@ class MemoryStore {
     this.workflowChanges = 0;
     this.lastOrganizedAt = 0;
     this.organizationCandidateCount = 0;
+    this.organizationProposals = new Map();
     this.lastSavedBytes = 0;
     this.predictionMinUses = options.predictionMinUses || 2;
     this.predictionMinSuccessRate = options.predictionMinSuccessRate ?? 0.8;
@@ -46,6 +47,9 @@ class MemoryStore {
       this.workflowChanges = Number(parsed?.organization?.changesSince || 0);
       this.lastOrganizedAt = Number(parsed?.organization?.lastOrganizedAt || 0);
       this.organizationCandidateCount = Number(parsed?.organization?.candidateCount || 0);
+      for (const proposal of Array.isArray(parsed?.organization?.proposals) ? parsed.organization.proposals : []) {
+        if (proposal?.scopeKey) this.organizationProposals.set(String(proposal.scopeKey), proposal);
+      }
       this.lastSavedBytes = fs.statSync(this.filePath).size;
       this.prune();
     } catch (error) {
@@ -240,7 +244,12 @@ class MemoryStore {
         transitions: [...this.transitions.values()],
         workflows: [...this.workflows.values()],
         predictions: [...this.predictions.values()],
-        organization: { changesSince: this.workflowChanges, lastOrganizedAt: this.lastOrganizedAt, candidateCount: this.organizationCandidateCount }
+        organization: {
+          changesSince: this.workflowChanges,
+          lastOrganizedAt: this.lastOrganizedAt,
+          candidateCount: this.organizationCandidateCount,
+          proposals: [...this.organizationProposals.values()].slice(-20)
+        }
       });
   }
 
@@ -466,8 +475,42 @@ class MemoryStore {
       changesSince: this.workflowChanges,
       lastOrganizedAt: this.lastOrganizedAt || null,
       candidates: this.organizationCandidateCount,
+      pendingProposals: scopeKey ? Number(this.organizationProposals.has(String(scopeKey))) : this.organizationProposals.size,
       due: this.workflowChanges >= 50 || this.organizationCandidateCount >= 20 || (this.organizationCandidateCount > 0 && ageMs >= 24 * 60 * 60 * 1000)
     };
+  }
+
+  organizationScopes() {
+    return [...new Set([...this.workflows.values()].filter((workflow) => !workflow.archivedAt).map((workflow) => workflowScope(workflow)))];
+  }
+
+  saveOrganizationProposal(scopeKey, proposal = {}) {
+    const key = String(scopeKey || '');
+    if (!key) throw new Error('organization_scope_required');
+    const value = {
+      scopeKey: key,
+      createdAt: Date.now(),
+      model: String(proposal.model || '').slice(0, 120),
+      operations: JSON.parse(JSON.stringify(Array.isArray(proposal.operations) ? proposal.operations.slice(0, 20) : []))
+    };
+    this.organizationProposals.set(key, value);
+    while (this.organizationProposals.size > 20) this.organizationProposals.delete(this.organizationProposals.keys().next().value);
+    this.workflowChanges = 0;
+    this.lastOrganizedAt = value.createdAt;
+    this.organizationCandidateCount = 0;
+    this.save();
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  getOrganizationProposal(scopeKey) {
+    const value = this.organizationProposals.get(String(scopeKey || ''));
+    return value ? JSON.parse(JSON.stringify(value)) : null;
+  }
+
+  clearOrganizationProposal(scopeKey) {
+    const changed = this.organizationProposals.delete(String(scopeKey || ''));
+    if (changed) this.save();
+    return changed;
   }
 
   markOrganized() {

@@ -51,6 +51,8 @@ class ComputerEngine {
     this.riskPolicy = options.riskPolicy || loadRiskPolicy(options.riskPolicyFile || process.env.COMPUTER_USE_PLUS_RISK_POLICY_FILE, { mode: process.env.COMPUTER_USE_PLUS_RISK_MODE || 'high-risk' });
     this.verifyRoots = [this.dataDir, ...String(options.verifyRoots || process.env.COMPUTER_USE_PLUS_VERIFY_ROOTS || '').split(path.delimiter).filter(Boolean).map((item) => path.resolve(item))];
     this.snapshotSequence = 0;
+    this.autoOrganize = options.autoOrganize ?? process.env.COMPUTER_USE_PLUS_AUTO_ORGANIZE !== '0';
+    this.organizationInFlight = null;
     this.metrics = {
       actions: 0, successes: 0, failures: 0, strategy: {},
       screenshots: 0, screenshotBytes: 0, ocrCalls: 0, ocrLatencyMs: 0,
@@ -60,9 +62,32 @@ class ComputerEngine {
       startedAt: Date.now()
     };
     if (typeof this.memory.maintenance === 'function') {
-      this.maintenanceTimer = setInterval(() => this.memory.maintenance(), 60 * 60 * 1000);
+      const maintenanceIntervalMs = Math.max(1000, Number(options.maintenanceIntervalMs || 60 * 60 * 1000));
+      this.maintenanceTimer = setInterval(() => { void this.runMaintenance().catch((error) => process.stderr.write(`[organization] ${error.message}\n`)); }, maintenanceIntervalMs);
       this.maintenanceTimer.unref?.();
     }
+  }
+
+  async runMaintenance() {
+    const maintenance = typeof this.memory.maintenance === 'function' ? this.memory.maintenance() : { changed: false };
+    if (!this.autoOrganize || typeof this.fastAi.organize !== 'function' || typeof this.memory.organizationScopes !== 'function') return { maintenance, organized: false };
+    const configured = typeof this.fastAi.status !== 'function' || this.fastAi.status()?.configured === true;
+    if (!configured) return { maintenance, organized: false, reason: 'organizer_not_configured' };
+    if (this.organizationInFlight) return this.organizationInFlight;
+    this.organizationInFlight = this.proposeOrganization(maintenance).finally(() => { this.organizationInFlight = null; });
+    return this.organizationInFlight;
+  }
+
+  async proposeOrganization(maintenance) {
+    for (const scopeKey of this.memory.organizationScopes()) {
+      const candidates = this.memory.organizationCandidates(scopeKey, 20);
+      if (!candidates.length || !this.memory.organizationStatus(scopeKey).due) continue;
+      const proposal = await this.fastAi.organize({ candidates: summarizeOrganizationCandidates(candidates), maxOperations: 20 });
+      this.recordModelUsage(proposal.usage);
+      const saved = this.memory.saveOrganizationProposal(scopeKey, proposal);
+      return { maintenance, organized: true, proposal: { scopeKey, model: saved.model, operations: saved.operations.length } };
+    }
+    return { maintenance, organized: false, reason: 'not_due' };
   }
 
   async state(args = {}) {
@@ -634,12 +659,13 @@ class ComputerEngine {
     if (args.action === 'organize') {
       const scope = args.window || args.windows ? await this.resolveWorkflowScope(args, []) : null;
       const candidates = this.memory.organizationCandidates(scope?.scopeKey || null, args.limit || 20);
-      if (!args.apply && args.useAi !== true) return { ok: true, due: this.memory.organizationStatus(scope?.scopeKey || null).due, candidates };
+      const pendingProposal = scope && typeof this.memory.getOrganizationProposal === 'function' ? this.memory.getOrganizationProposal(scope.scopeKey) : null;
+      if (!args.apply && args.useAi !== true) return { ok: true, due: this.memory.organizationStatus(scope?.scopeKey || null).due, candidates, ...(pendingProposal ? { proposal: pendingProposal } : {}) };
       if (!scope) throw new Error('shortcut_organization_scope_required');
       let operations = Array.isArray(args.apply) ? args.apply : [];
       let proposal = null;
       if (!operations.length && args.useAi === true) {
-        proposal = await this.fastAi.organize({ candidates, maxOperations: args.maxOperations || 20 });
+        proposal = await this.fastAi.organize({ candidates: summarizeOrganizationCandidates(candidates), maxOperations: args.maxOperations || 20 });
         if (args.applyAi === true) operations = proposal.operations || [];
       }
       const applied = [];
@@ -652,6 +678,7 @@ class ComputerEngine {
         else if (operation.op === 'archive') applied.push(this.memory.archiveWorkflow(operation.name, scope?.scopeKey));
       }
       if (applied.length) this.memory.markOrganized();
+      if (applied.length && scope && typeof this.memory.clearOrganizationProposal === 'function') this.memory.clearOrganizationProposal(scope.scopeKey);
       return { ok: true, candidates, applied, ...(proposal ? { proposal: { operations: proposal.operations, model: proposal.model, ...(proposal.usage ? { usage: proposal.usage } : {}) } } : {}) };
     }
     if (args.action === 'run') {
@@ -1067,4 +1094,32 @@ function operationDigest(operation) {
   })).digest('hex');
 }
 
-module.exports = { ComputerEngine, classifyActionRisk, operationDigest };
+function summarizeOrganizationCandidates(candidates = []) {
+  return candidates.map((candidate) => ({
+    similarity: Number(candidate.similarity || 0),
+    left: summarizeWorkflow(candidate.left),
+    right: summarizeWorkflow(candidate.right)
+  }));
+}
+
+function summarizeWorkflow(workflow = {}) {
+  return {
+    name: workflow.name,
+    scope: workflow.scope,
+    uses: Number(workflow.uses || 0),
+    source: workflow.source,
+    aliases: Array.isArray(workflow.aliases) ? workflow.aliases.slice(0, 10) : [],
+    actionShape: (workflow.actions || []).slice(0, 100).map((action) => {
+      const type = Object.keys(action || {}).find((key) => key !== 'window') || 'unknown';
+      const value = action?.[type];
+      return {
+        type,
+        ...(action?.window ? { window: String(action.window) } : {}),
+        ...(value?.role ? { role: String(value.role).slice(0, 40) } : {}),
+        ...(type === 'wait' ? { hasWait: true } : {})
+      };
+    })
+  };
+}
+
+module.exports = { ComputerEngine, classifyActionRisk, operationDigest, summarizeOrganizationCandidates };

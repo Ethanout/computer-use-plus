@@ -24,6 +24,7 @@
 - 程序自动记录定位器、页面指纹和状态转换；包含作用域隔离、失败降权、TTL、容量和字节预算回收。
 - 主 AI 可显式保存模板化 shortcut；单窗口和跨窗口流程分开存储。自动聚类只合并重复、安全且结构等价的变体。
 - 可选快速 AI 与低频整理 AI 共用用户自行配置的 key；快速 AI 不可直接修改长期 shortcut，整理默认 proposal-first。
+- 每小时维护会先执行本地 TTL/容量回收；候选/变更量/空闲阈值到期且配置了 AI 时，后台只生成持久化待审 proposal，不自动修改长期 shortcut。
 - 高风险操作的策略引擎、链路摘要和单次确认 token；普通导航保持自动执行。
 - provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
 - `computer.fast` 支持显式流式早调度：首个完整 tool call 到达即进入原有权限/确认链，网络流和本地动作并行，同一响应不会重复执行。
@@ -35,7 +36,7 @@
 
 ## 当前验证证据
 
-- `npm test`：77 项自动测试通过；`npm run test:ci`：74 项通过。
+- `npm test`：81 项自动测试通过；`npm run test:ci`：78 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。

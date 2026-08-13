@@ -48,6 +48,7 @@ npm start
 - `computer.browser`：使用项目 `.data` 下的独立浏览器 profile，通过 CDP 页面目标、Accessibility Tree 和 DOM 边界操作公开页面；支持 `launch`、`list`、`inspect`、`click`、`setValue`、`keys` 和 `stop`，不会连接用户现有浏览器 profile。
 
 服务端在每次 `computer.act` 后自动更新底层 UI 定位记忆，模型不能直接改写定位器和状态转换统计；主 AI 可以通过 `computer.shortcut` 显式管理可复用动作链。
+后台维护达到候选、变更量或空闲阈值且配置了整理 AI 时，会自动生成待审 proposal；它不会自动 merge、rename、archive 或删除 shortcut。待审数量通过 `computer.state.memory.organization.pendingProposals` 可见，主 AI 或用户仍需显式应用。
 `computer.state.metrics` 只负责累计动作策略、OCR 次数与耗时、截图次数和实际图像字节数，用于成本/延迟评估；它不是动作链本体。供模型一次规划完整链路的数据来自 `computer.state.snapshot`、最近 `transitions` 和已保存的 `computer.shortcut`。
 缓存定位器失效时，服务会自动降权并先用原始 UIA 查询重新发现，只有 UIA 失败才进入 OCR，OCR 无法消歧且视觉 provider 已配置时才进入结构化视觉；代理启动时还会清理过期临时截图、旧日志和旧版本代理二进制。
 
