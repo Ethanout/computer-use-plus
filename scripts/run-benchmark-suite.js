@@ -14,7 +14,7 @@ if (!file) {
   const outputIndex = process.argv.indexOf('--output');
   const engine = execute ? new ComputerEngine() : null;
   const callTool = engine ? async (name, args) => dispatch(engine, name, args) : null;
-  const runner = new BenchmarkSuiteRunner({ callTool });
+  const runner = new BenchmarkSuiteRunner({ callTool, readMetrics: engine ? () => engine.metrics : null });
   runner.run(loadSuite(file), { dryRun: !execute }).then(async (result) => {
     const json = `${JSON.stringify(result, null, 2)}\n`;
     if (outputIndex >= 0 && process.argv[outputIndex + 1]) fs.writeFileSync(path.resolve(process.argv[outputIndex + 1]), json, 'utf8');

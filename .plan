@@ -28,13 +28,14 @@
 - provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
 - `computer.fast` 支持显式流式早调度：首个完整 tool call 到达即进入原有权限/确认链，网络流和本地动作并行，同一响应不会重复执行。
 - benchmark 汇总器和 Edge/Minecraft/微信声明式 suite；默认 dry-run，真实执行必须显式 `--execute`。
+- benchmark runner 按任务前后引擎指标差值记录真实 OCR、截图字节、模型 token、classifier、shortcut、动作和路由成本，不再从步骤名称推测资源使用。
 - `computer.verify` 支持窗口指纹/标题、元素状态和值、浏览器 URL、限定目录内文件断言。
 - DeepSeek Harness adapter：使用官方 `@deepseek-ai/dsh-mcp-client` 以 stdio 复用 MCP 服务，并提供稳定低 token 的 `harness` 工具档。
 - 本地 Git 仓库已初始化；运行数据、密钥、浏览器 profile、临时文件和媒体文件被 `.gitignore` 排除。
 
 ## 当前验证证据
 
-- `npm test`：73 项自动测试通过；`npm run test:ci`：70 项通过。
+- `npm test`：74 项自动测试通过；`npm run test:ci`：71 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。

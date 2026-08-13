@@ -16,6 +16,7 @@ class BenchmarkSuiteRunner {
     this.env = options.env || process.env;
     this.platform = options.platform || process.platform;
     this.exists = options.exists || fs.existsSync;
+    this.readMetrics = options.readMetrics || null;
   }
 
   validate(suite) {
@@ -56,6 +57,7 @@ class BenchmarkSuiteRunner {
       const repeats = Math.max(1, Math.min(Number(task.repeats || suite.repeats || 1), 20));
       for (let iteration = 1; iteration <= repeats; iteration += 1) {
         const started = Date.now();
+        const metricsBefore = await this.metricSnapshot();
         let success = requirements.ok;
         let failureReason = requirements.ok ? null : 'requirements_not_met';
         const steps = [];
@@ -76,15 +78,36 @@ class BenchmarkSuiteRunner {
             }
           }
         }
+        const metricDelta = metricsDifference(metricsBefore, await this.metricSnapshot());
         const sample = recorder.record({
           name: task.id, application: suite.application || 'unknown', strategy: task.strategy || 'mixed',
           success, latencyMs: Date.now() - started, mcpRoundTrips: dryRun ? 0 : steps.length,
-          failureReason, screenshots: steps.filter((item) => item.tool === 'computer.screenshot').length
+          failureReason,
+          inputTokens: metricDelta.modelInputTokens,
+          outputTokens: metricDelta.modelOutputTokens,
+          screenshots: metricDelta.screenshots || steps.filter((item) => item.tool === 'computer.screenshot').length,
+          screenshotBytes: metricDelta.screenshotBytes,
+          ocrCalls: metricDelta.ocrCalls,
+          ocrLatencyMs: metricDelta.ocrLatencyMs,
+          modelCalls: metricDelta.modelCalls,
+          toolCalls: metricDelta.toolCalls,
+          shortcutHits: metricDelta.shortcutHits,
+          classifierCalls: metricDelta.classifierCalls,
+          classifierHits: metricDelta.classifierHits,
+          classifierLatencyMs: metricDelta.classifierLatencyMs,
+          actions: metricDelta.actions,
+          engineFailures: metricDelta.failures,
+          strategyCounts: metricDelta.strategy
         });
         tasks.push({ id: task.id, iteration, success, failureReason, steps, sample });
       }
     }
     return { ok: requirements.ok && tasks.every((item) => item.success), dryRun, requirements, tasks, summary: recorder.summary() };
+  }
+
+  async metricSnapshot() {
+    if (!this.readMetrics) return {};
+    try { return cloneMetrics(await this.readMetrics()); } catch (_) { return {}; }
   }
 }
 
@@ -123,4 +146,18 @@ function interpolateEnvironment(value, env) {
   return value.replace(/\$\{([A-Z0-9_]+)\}/g, (_match, key) => env[key] === undefined ? _match : String(env[key]));
 }
 
-module.exports = { BenchmarkSuiteRunner, loadSuite, interpolateEnvironment, resultMatches, ALLOWED_TOOLS };
+function cloneMetrics(value) { return JSON.parse(JSON.stringify(value && typeof value === 'object' ? value : {})); }
+function metricsDifference(before = {}, after = {}) {
+  const output = {};
+  for (const key of ['actions', 'failures', 'screenshots', 'screenshotBytes', 'ocrCalls', 'ocrLatencyMs', 'modelCalls', 'modelInputTokens', 'modelOutputTokens', 'classifierCalls', 'classifierHits', 'classifierLatencyMs', 'toolCalls', 'shortcutHits']) {
+    output[key] = Math.max(0, Number(after[key] || 0) - Number(before[key] || 0));
+  }
+  output.strategy = {};
+  for (const key of new Set([...Object.keys(before.strategy || {}), ...Object.keys(after.strategy || {})])) {
+    const difference = Math.max(0, Number(after.strategy?.[key] || 0) - Number(before.strategy?.[key] || 0));
+    if (difference) output.strategy[key] = difference;
+  }
+  return output;
+}
+
+module.exports = { BenchmarkSuiteRunner, loadSuite, interpolateEnvironment, resultMatches, metricsDifference, ALLOWED_TOOLS };

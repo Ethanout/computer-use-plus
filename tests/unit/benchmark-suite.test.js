@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { BenchmarkSuiteRunner } = require('../../src/benchmark-suite');
 const { interpolateEnvironment } = require('../../src/benchmark-suite');
+const { metricsDifference } = require('../../src/benchmark-suite');
 
 const suite = {
   name: 'mock-suite', application: 'mock', requirements: { platform: 'win32', env: ['APP_COMMAND'] },
@@ -65,4 +66,25 @@ test('Minecraft and WeChat suites launch and inspect explicit isolated instances
     assert.equal(value.tasks[0].steps[4].arguments.action, 'diagnose');
     assert.equal(value.requirements.env.length, 2);
   }
+});
+
+test('benchmark records engine metric deltas instead of inferring OCR and screenshot cost', async () => {
+  const metrics = { screenshots: 2, screenshotBytes: 100, ocrCalls: 1, ocrLatencyMs: 20, modelInputTokens: 10, modelOutputTokens: 2, shortcutHits: 0, strategy: { uia: 1 } };
+  const runner = new BenchmarkSuiteRunner({
+    platform: 'win32', env: { APP_COMMAND: 'mock.exe' }, readMetrics: () => metrics,
+    callTool: async () => {
+      metrics.screenshots += 1; metrics.screenshotBytes += 400; metrics.ocrCalls += 2; metrics.ocrLatencyMs += 30;
+      metrics.modelInputTokens += 5; metrics.modelOutputTokens += 1; metrics.shortcutHits += 1; metrics.strategy.ocr = 2;
+      return { ok: true };
+    }
+  });
+  const input = { name: 'metrics', requirements: { platform: 'win32', env: ['APP_COMMAND'] }, tasks: [{ id: 'x', steps: [{ tool: 'computer.state' }] }] };
+  const result = await runner.run(input, { dryRun: false });
+  assert.equal(result.tasks[0].sample.screenshots, 1);
+  assert.equal(result.tasks[0].sample.screenshotBytes, 400);
+  assert.equal(result.tasks[0].sample.ocrCalls, 2);
+  assert.equal(result.tasks[0].sample.inputTokens, 5);
+  assert.equal(result.tasks[0].sample.shortcutHits, 1);
+  assert.deepEqual(result.summary.routes, { ocr: 2 });
+  assert.deepEqual(metricsDifference({ strategy: { uia: 1 } }, { strategy: { uia: 3 } }).strategy, { uia: 2 });
 });
