@@ -14,3 +14,8 @@
           COMPUTER_USE_PLUS_RISK_MODE: !!js "process.env.COMPUTER_USE_PLUS_RISK_MODE || 'high-risk'"
         toolCallTimeoutMs: 60000
         failOnStartupError: true
+        reconnect:
+          enabled: true
+          initialDelayMs: 500
+          maxDelayMs: 30000
+          maxAttempts: 10

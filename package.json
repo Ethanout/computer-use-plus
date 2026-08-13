@@ -12,6 +12,7 @@
     "benchmark": "node scripts/benchmark.js",
     "benchmark:suite": "node scripts/run-benchmark-suite.js",
     "benchmark:providers": "node scripts/benchmark-providers.js",
+    "benchmark:windows": "node scripts/benchmark-windows-runtime.js",
     "verify:harness": "node scripts/verify-deepseek-harness.js"
   },
   "engines": {

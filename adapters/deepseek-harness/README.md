@@ -29,7 +29,7 @@ Validate composition loading without an API key:
 npx @deepseek-ai/dsh --profile headless --patch D:\projects\computer-use-plus\adapters\deepseek-harness\cordis.yml --dump-config
 ```
 
-The adapter was verified on 2026-08-14 with the published
+The adapter was verified on 2026-08-14 against DeepSeek Harness `master` and the published
 `@deepseek-ai/dsh`/`@deepseek-ai/dsh-mcp-client` `0.1.0-rc.6`, Node 24, and an
 actual headless Host turn. The Host discovered all six tools listed below.
 Re-run that verification from a configured Harness profile with:
@@ -44,9 +44,12 @@ The verification command uses the profile's normal model credentials solely to
 ask the Host to list tools. It does not configure or read a computer-use-plus
 AI key.
 
-A second real Host turn also called `computer_state` through the bridge and
-confirmed `execution.backgroundOnly: true`, proving tool execution and result
-projection in addition to discovery.
+The verifier first validates that the overlay loads with `--dump-config`, then runs
+a real Host turn which discovers all six tools and calls `computer_state`. It checks
+`execution.backgroundOnly: true`, proving tool execution and result projection in
+addition to discovery. The overlay sets the upstream bridge's documented reconnect
+policy explicitly (500 ms to 30 s, 10 attempts), so an upstream default change cannot
+silently change availability behavior.
 
 If the project is elsewhere, set:
 

@@ -95,6 +95,33 @@ test('state can return one action-ready UI snapshot with reusable refs', async (
   assert.equal(acted.ok, true);
 });
 
+test('isolated UIA-only batches do not request foreground focus', async () => {
+  const driver = new MockDriver();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-isolated-focus-'));
+  let focusCalls = 0;
+  driver.focus = async () => { focusCalls += 1; return { ok: true }; };
+  const engine = new ComputerEngine({ driver, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  engine.isolated = true;
+  await engine.act({ window: 'mock-1', actions: [{ click: { text: '保存', role: 'button' } }] });
+  assert.equal(focusCalls, 0);
+  await engine.act({ window: 'mock-1', actions: [{ kbseq: ['a'] }] });
+  assert.equal(focusCalls, 1);
+});
+
+test('saved shortcuts use action results without full state-tree observation on every replay', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-shortcut-observation-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  memory.recordWorkflow('save fixture', 'mock|mock', [{ click: { text: '保存', role: 'button' } }]);
+  const driver = new MockDriver();
+  let fullObservationCalls = 0;
+  const inspect = driver.inspect.bind(driver);
+  driver.inspect = async (...args) => { if (args[1]?.limit === 50) fullObservationCalls += 1; return inspect(...args); };
+  const engine = new ComputerEngine({ driver, memory });
+  const output = await engine.manageShortcut({ action: 'run', window: 'mock-1', name: 'save fixture' });
+  assert.equal(output.ok, true);
+  assert.equal(fullObservationCalls, 0);
+});
+
 test('state explicitly reports whether execution is isolated from the foreground desktop', async () => {
   const engine = new ComputerEngine({ driver: new MockDriver(), memory: { stats: () => ({ records: 0 }) }, executionMode: 'backgroundOnly' });
   const state = await engine.state();

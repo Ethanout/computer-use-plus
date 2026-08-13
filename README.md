@@ -172,6 +172,10 @@ npm run benchmark:suite -- docs/benchmarks/edge.json
 npm run benchmark:suite -- docs/benchmarks/edge.json --execute --output .data/edge-benchmark.json
 ```
 
+基准可使用顶层 `setup`/`teardown`：前者只启动一次且不计入任务延迟，后者无论任务结果都会执行。这使浏览器冷启动与稳态 UIA/CDP/OCR 路径的 P50/P95 分开，避免把启动时间当作单步定位延迟。
+
+`npm run benchmark:windows` 会在专用桌面启动仓库自建 WinForms fixture，测量实际 UIA、已命中 shortcut 和预热 OCR 路径。2026-08-14 本机结果为 UIA P95 17.23 ms、shortcut P95 67.88 ms、OCR P95 441.16 ms，均不使用模型 token；它不读取或操作用户当前窗口。
+
 真实执行需要将 runner 接入 MCP 客户端，并显式提供独立实例启动配置。使用以下环境变量作为前置条件，而不是复用用户现有实例：
 
 - `COMPUTER_USE_PLUS_BROWSER_EXECUTABLE`

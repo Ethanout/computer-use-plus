@@ -405,7 +405,7 @@ class ComputerEngine {
     }
     const localShortcut = routed.shortcut;
     if (localShortcut) {
-      const execution = await this.invokeGuarded({ type: 'shortcut', window: args.window, name: localShortcut.name, params: args.params || {} });
+      const execution = await this.invokeGuarded({ type: 'shortcut', window: args.window, windowKey: localWindowKey, name: localShortcut.name, params: args.params || {} });
       return { ok: execution.ok, source: routed.source === 'classifier' ? 'local-classifier' : 'local-shortcut', shortcut: localShortcut.name, execution, ...(routed.confidence ? { confidence: routed.confidence } : {}) };
     }
     const snapshot = args.snapshot || await this.state({ window: args.window, includeUi: true, maxNodes: args.maxNodes || 30, includeTransitions: true }).then((state) => state.snapshot);
@@ -499,8 +499,8 @@ class ComputerEngine {
     if (!operation.window) throw new Error('window_required');
     let actions = operation.actions;
     if (operation.type === 'shortcut') {
-      const scope = await this.resolveWorkflowScope({ window: operation.window }, []);
-      const workflow = this.memory.getWorkflow(operation.name, scope.scopeKey);
+      const scopeKey = operation.windowKey || await this.getWindowKey(operation.window);
+      const workflow = this.memory.getWorkflow(operation.name, scopeKey);
       if (!workflow) throw new Error('shortcut_not_found');
       actions = MemoryStore.interpolate(workflow.actions, { ...(workflow.parameters || {}), ...(operation.params || {}) });
     }
@@ -509,7 +509,10 @@ class ComputerEngine {
     const guardedOperation = { ...operation, actions };
     const gate = await this.guardActions(guardedOperation, actions, confirmationToken, [operation.window]);
     if (gate) return gate;
-    const execution = await this.act({ window: operation.window, actions });
+    // A saved shortcut already has an explicit, bounded action contract. Each
+    // action result verifies this replay; reserve full UI-tree observation for
+    // learning, recovery, and ordinary actions so hot shortcuts stay hot.
+    const execution = await this.act({ window: operation.window, windowKey: operation.windowKey, actions, observe: operation.type !== 'shortcut' });
     if (operation.type === 'shortcut') this.metrics.shortcutHits += 1;
     return { ok: execution.ok, ...(operation.type === 'shortcut' ? { shortcut: operation.name } : {}), execution };
   }
@@ -699,7 +702,7 @@ class ComputerEngine {
       const windowIds = scope.scope === 'cross' ? Object.values(scope.windows).map((item) => item.id) : [scope.window];
       const gate = await this.guardActions(operation, actions, args.confirm_token, windowIds);
       if (gate) return gate;
-      const execution = scope.scope === 'cross' ? await this.executeCrossShortcut(scope, actions) : await this.act({ window: scope.window, actions });
+      const execution = scope.scope === 'cross' ? await this.executeCrossShortcut(scope, actions) : await this.act({ window: scope.window, windowKey: scope.scopeKey, actions, observe: false });
       return { ok: execution.ok, shortcut: workflow.name, parameters, execution };
     }
     throw new Error('invalid_shortcut_action');
@@ -786,15 +789,20 @@ class ComputerEngine {
     }
     const started = Date.now();
     const results = [];
-    const windowKey = await this.getWindowKey(args.window);
+    const windowKey = args.windowKey || await this.getWindowKey(args.window);
     const actionSignature = this.actionSignature(args.actions);
-    const sampled = typeof this.memory.shouldObserve === 'function' && this.memory.shouldObserve(windowKey);
+    const sampled = args.observe !== false && typeof this.memory.shouldObserve === 'function' && this.memory.shouldObserve(windowKey);
     const before = sampled ? await this.observeWindow(args.window).catch(() => null) : null;
     const prediction = !sampled && typeof this.memory.predict === 'function'
       ? this.memory.predict(windowKey, actionSignature)
       : null;
-    await this.driver.focus(args.window);
-    await sleep(100);
+    const needsKeyboardFocus = args.actions.some((action) => action.hotkey || action.keys || action.kbseq || action.kbops);
+    // UIA Invoke/Value and window messages target an explicit isolated HWND.
+    // Avoid SetForegroundWindow on the hidden desktop unless keyboard delivery needs it.
+    if (!this.isolated || needsKeyboardFocus) {
+      await this.driver.focus(args.window);
+      if (!this.isolated) await sleep(100);
+    }
     try {
       for (const action of args.actions) {
         const resolvedAction = this.resolveActionRefs(args.window, action);

@@ -28,6 +28,7 @@ test('Harness Cordis entry launches the stdio server in harness profile', () => 
   assert.match(config, /serverName: computer_use_plus/);
   assert.match(config, /args: \['src\/index\.js'\]/);
   assert.match(config, /COMPUTER_USE_PLUS_TOOL_PROFILE: harness/);
+  assert.match(config, /reconnect:\r?\n\s+enabled: true/);
   assert.doesNotMatch(config, /API_KEY|deepseek\.txt/i);
 });
 
@@ -45,5 +46,8 @@ test('Harness verification script checks the exact low-token tool surface', () =
   }
   assert.match(source, /DSH_TELEMETRY_MODE/);
   assert.match(source, /expectedShortTools/);
+  assert.match(source, /--dump-config/);
+  assert.match(source, /computer_state exactly once/);
+  assert.match(source, /harness_computer_state_invalid/);
   assert.doesNotMatch(source, /deepseek\.txt/i);
 });

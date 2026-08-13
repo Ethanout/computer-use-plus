@@ -26,7 +26,19 @@ node scripts/run-benchmark-suite.js docs/benchmarks/wechat.json --execute
 
 一个成功运行会依次创建专用桌面、通过 Job Object 启动实例、等待目标窗口、读取一次紧凑 UI 快照，并对执行桌面进行诊断。完成后 runner 会销毁桌面并回收启动的进程树。
 
+suite 可选 `setup` 和 `teardown`。`setup` 在计时任务前只运行一次，`teardown` 总会在任务结束后运行；两者不会混入每个任务的 P50/P95。`edge.json` 用此结构将浏览器冷启动与 10 次稳态 CDP 读取分开。2026-08-14 在该机器的专用执行桌面实测稳态 list + inspect：10/10 成功，P50 4 ms、P95 18 ms、0 token、0 截图、0 OCR。
+
 结果样本会用任务前后的引擎指标差值记录实际 `screenshots`、`screenshotBytes`、`ocrCalls`、`ocrLatencyMs`、模型 token、classifier、shortcut、动作数和动作路由。直接调用 CDP 管理接口的任务以任务级 `strategy: "cdp"` 统计，不会虚构为动作路由计数。
+
+Windows 本地路由的可重复性能验收使用自建 WinForms fixture，不读取或操作用户窗口：
+
+```powershell
+npm run benchmark:windows
+```
+
+它分别报告 UIA inspect、已命中 shortcut 和预热后 OCR 的成功率、P50/P95，并在结束时销毁专用执行桌面。
+
+2026-08-14 本机实际结果：UIA inspect 20/20，P95 17.23 ms；已命中 shortcut 20/20，P95 67.88 ms；预热 OCR 5/5，P95 441.16 ms。三条路径均未调用模型，且 shortcut 的每个 UIA/Win32 动作结果是即时验证。该 fixture 基准用于回归与容量判断，不代表所有自绘应用的性能保证。
 
 常见 UWP、商店版或启动器场景可能需要把命令包装为实际可执行的启动器命令；只要命令在专用桌面中能创建目标窗口即可。窗口进程名不含 `.exe`，大小写不敏感。
 
