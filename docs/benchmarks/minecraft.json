@@ -1,0 +1,15 @@
+{
+  "name": "minecraft-isolated-smoke",
+  "application": "minecraft",
+  "requirements": { "platform": "win32", "env": ["COMPUTER_USE_PLUS_MINECRAFT_COMMAND"] },
+  "tasks": [
+    {
+      "id": "open-pause-menu",
+      "strategy": "isolated-input",
+      "steps": [
+        { "tool": "computer.execution", "arguments": { "action": "create" } },
+        { "tool": "computer.state", "arguments": { "includeUi": true, "maxNodes": 30 } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+# computer-use-plus 总体计划
+
+更新时间：2026-08-13
+
+## 目标
+
+构建 Windows 10/11 专用、低 token、低延迟的 MCP computer-use 服务。默认在专用执行桌面和独立应用 profile 中运行，不抢占用户前台桌面。
+
+核心识别优先级：
+
+```text
+已验证的 shortcut / 记忆预测
+→ UIA、Win32、Chromium CDP
+→ 本地带坐标 OCR
+→ 严格 schema 的结构化视觉
+→ 低频远程模型恢复或整理
+```
+
+## 已完成
+
+- Windows 专用执行桌面、Job Object 进程树回收和隔离窗口输入；不调用 `SwitchDesktop`，不向用户前台发送全局 `SendInput`。
+- UIA/Win32 优先定位、CDP/DOM/Accessibility Tree 浏览器后端、本地 OCR 和结构化视觉降级路由。
+- 一次 `computer.state` 返回紧凑 action-ready UI 快照与短期节点 ref；动作链可一次批量提交。
+- 程序自动记录定位器、页面指纹和状态转换；包含作用域隔离、失败降权、TTL、容量和字节预算回收。
+- 主 AI 可显式保存模板化 shortcut；单窗口和跨窗口流程分开存储。自动聚类只合并重复、安全且结构等价的变体。
+- 可选快速 AI 与低频整理 AI 共用用户自行配置的 key；快速 AI 不可直接修改长期 shortcut，整理默认 proposal-first。
+- 高风险操作的策略引擎、链路摘要和单次确认 token；普通导航保持自动执行。
+- provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
+- benchmark 汇总器和 Edge/Minecraft/微信声明式 suite；默认 dry-run，真实执行必须显式 `--execute`。
+- `computer.verify` 支持窗口指纹/标题、元素状态和值、浏览器 URL、限定目录内文件断言。
+- DeepSeek Harness adapter：使用官方 `@deepseek-ai/dsh-mcp-client` 以 stdio 复用 MCP 服务，并提供稳定低 token 的 `harness` 工具档。
+- 本地 Git 仓库已初始化；运行数据、密钥、浏览器 profile、临时文件和媒体文件被 `.gitignore` 排除。
+
+## 当前验证证据
+
+- `npm test`：58 项自动测试通过。
+- 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
+- Edge 独立 profile / CDP 真实 smoke：`data:` 页面冷启动端到端约 1.389 秒，3 次 MCP 往返；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
+- Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
+
+## 下一阶段
+
+1. 在安装了 DeepSeek Harness 的目标环境做实际 host 连接、工具发现和一次无 key 本地调用验收。
+2. 使用独立实例运行 Edge、Minecraft、微信 benchmark；记录 shortcut/UIA/CDP/OCR/视觉路径的成功率、P50/P95、token、截图和成本。
+3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
+4. 把 provider 的流式 tool-call 接入完整 agent loop，使参数校验完成后能尽早执行；为本地 action-ID 路由加入可插拔分类器基准。
+5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。
+6. 发布到用户指定的 GitHub/GitLab 仓库。推送前再次检查不会提交 `.data`、密钥、profile 或媒体文件。
+
+## DeepSeek Harness 使用方式
+
+将 `adapters/deepseek-harness/cordis.yml` 的条目合并进 Harness composition。项目不在 `D:/projects/computer-use-plus` 时设置 `COMPUTER_USE_PLUS_ROOT`。
+
+Harness profile 只公开：
+
+- `shortcut_run`
+- `computer_invoke`
+- `computer_state`
+- `computer_inspect`
+- `computer_verify`
+- `computer_cancel`
+
+这样避免点号工具名在 Harness 中被规范化并附加哈希，减少工具 schema 与调用 token。
+
+## 发布前置条件
+
+远程发布需要明确的 GitHub/GitLab 目标仓库 URL 或名称。没有该目标时，只能完成本地 Git 初始化和提交，不能安全假设用户账户或公开性。

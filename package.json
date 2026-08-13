@@ -1,0 +1,17 @@
+{
+  "name": "computer-use-plus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Low-token Windows computer-use MCP server",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "benchmark": "node scripts/benchmark.js",
+    "benchmark:suite": "node scripts/run-benchmark-suite.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

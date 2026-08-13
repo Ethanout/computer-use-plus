@@ -1,0 +1,16 @@
+{
+  "name": "edge-isolated-smoke",
+  "application": "edge",
+  "requirements": { "platform": "win32", "files": ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"] },
+  "tasks": [
+    {
+      "id": "inspect-public-page",
+      "strategy": "cdp",
+      "steps": [
+        { "tool": "computer.browser", "arguments": { "action": "launch", "executable": "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "url": "data:text/html,%3Ctitle%3ECUP%20Edge%20Smoke%3C/title%3E%3Ch1%3EComputer%20Use%20Ready%3C/h1%3E" } },
+        { "tool": "computer.browser", "arguments": { "action": "list" }, "expect": { "minWindows": 1 } },
+        { "tool": "computer.browser", "arguments": { "action": "inspect", "query": { "text": "Computer Use Ready" } }, "expect": { "minElements": 1 } }
+      ]
+    }
+  ]
+}
