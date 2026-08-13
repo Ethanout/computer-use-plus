@@ -10,7 +10,8 @@
     "test": "node --test",
     "test:ci": "node scripts/test-ci.js",
     "benchmark": "node scripts/benchmark.js",
-    "benchmark:suite": "node scripts/run-benchmark-suite.js"
+    "benchmark:suite": "node scripts/run-benchmark-suite.js",
+    "verify:harness": "node scripts/verify-deepseek-harness.js"
   },
   "engines": {
     "node": ">=20"

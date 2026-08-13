@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { BenchmarkSuiteRunner } = require('../../src/benchmark-suite');
 const { interpolateEnvironment } = require('../../src/benchmark-suite');
 
@@ -52,4 +54,15 @@ test('benchmark suite interpolates only declared environment references at execu
   assert.equal(result.ok, true);
   assert.equal(executable, 'mock.exe');
   assert.equal(interpolateEnvironment('${UNKNOWN}', {}).includes('UNKNOWN'), true);
+});
+
+test('Minecraft and WeChat suites launch and inspect explicit isolated instances', () => {
+  for (const name of ['minecraft', 'wechat']) {
+    const value = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'docs', 'benchmarks', `${name}.json`), 'utf8'));
+    const tools = value.tasks[0].steps.map((step) => step.tool);
+    assert.deepEqual(tools, ['computer.execution', 'computer.execution', 'computer.wait', 'computer.state', 'computer.execution']);
+    assert.equal(value.tasks[0].steps[1].arguments.action, 'launch');
+    assert.equal(value.tasks[0].steps[4].arguments.action, 'diagnose');
+    assert.equal(value.requirements.env.length, 2);
+  }
 });

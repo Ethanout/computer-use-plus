@@ -1,14 +1,17 @@
 {
   "name": "wechat-isolated-smoke",
   "application": "wechat",
-  "requirements": { "platform": "win32", "env": ["COMPUTER_USE_PLUS_WECHAT_COMMAND"] },
+  "requirements": { "platform": "win32", "env": ["COMPUTER_USE_PLUS_WECHAT_COMMAND", "COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS"] },
   "tasks": [
     {
       "id": "inspect-main-window",
       "strategy": "uia-ocr",
       "steps": [
         { "tool": "computer.execution", "arguments": { "action": "create" } },
-        { "tool": "computer.state", "arguments": { "includeUi": true, "maxNodes": 30 } }
+        { "tool": "computer.execution", "arguments": { "action": "launch", "commandLine": "${COMPUTER_USE_PLUS_WECHAT_COMMAND}" } },
+        { "tool": "computer.wait", "arguments": { "windowQuery": { "process": "${COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS}" }, "timeoutMs": 30000, "pollMs": 250 }, "expect": { "minWindows": 1 } },
+        { "tool": "computer.state", "arguments": { "scope": "all", "includeUi": true, "maxNodes": 30 }, "expect": { "minWindows": 1 } },
+        { "tool": "computer.execution", "arguments": { "action": "diagnose" }, "expect": { "minWindows": 1 } }
       ]
     }
   ]
