@@ -45,7 +45,7 @@
 3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
 4. 把 provider 的流式 tool-call 接入完整 agent loop，使参数校验完成后能尽早执行；为本地 action-ID 路由加入可插拔分类器基准。
 5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。
-6. 发布到用户指定的 GitHub/GitLab 仓库。推送前再次检查不会提交 `.data`、密钥、profile 或媒体文件。
+6. 发布：已于 2026-08-13 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
 
 ## DeepSeek Harness 使用方式
 
