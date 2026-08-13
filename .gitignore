@@ -1,0 +1,17 @@
+node_modules/
+.data/
+.data-check/
+.data-probe/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.part-*
+*.mp4
+*.mkv
+*.webm
+browser-profile*/
+*.log
+*.tmp

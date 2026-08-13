@@ -1,0 +1,15 @@
+{
+  "name": "wechat-isolated-smoke",
+  "application": "wechat",
+  "requirements": { "platform": "win32", "env": ["COMPUTER_USE_PLUS_WECHAT_COMMAND"] },
+  "tasks": [
+    {
+      "id": "inspect-main-window",
+      "strategy": "uia-ocr",
+      "steps": [
+        { "tool": "computer.execution", "arguments": { "action": "create" } },
+        { "tool": "computer.state", "arguments": { "includeUi": true, "maxNodes": 30 } }
+      ]
+    }
+  ]
+}

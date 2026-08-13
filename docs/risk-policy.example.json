@@ -1,0 +1,18 @@
+{
+  "mode": "high-risk",
+  "rules": [
+    {
+      "id": "wechat-send",
+      "decision": "confirm",
+      "risk": "message_send_or_publish",
+      "pattern": "发送|send",
+      "process": "wechat"
+    },
+    {
+      "id": "block-payment",
+      "decision": "deny",
+      "risk": "purchase_or_payment",
+      "pattern": "支付|付款|pay|checkout"
+    }
+  ]
+}
