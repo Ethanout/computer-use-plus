@@ -1,6 +1,6 @@
 # computer-use-plus 总体计划
 
-更新时间：2026-08-13
+更新时间：2026-08-14
 
 ## 目标
 
@@ -28,6 +28,7 @@
 - 高风险操作的策略引擎、链路摘要和单次确认 token；普通导航保持自动执行。
 - provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
 - `computer.fast` 支持显式流式早调度：首个完整 tool call 到达即进入原有权限/确认链，网络流和本地动作并行，同一响应不会重复执行。
+- 默认本地 action-ID 分类器使用确定性的 Unicode 字符/n-gram 相似度，只在当前窗口作用域的已有 shortcut ID、名称和别名中选择；低于阈值时拒绝并继续降级，不调用模型也不生成新 ID。
 - benchmark 汇总器和 Edge/Minecraft/微信声明式 suite；默认 dry-run，真实执行必须显式 `--execute`。
 - benchmark runner 按任务前后引擎指标差值记录真实 OCR、截图字节、模型 token、classifier、shortcut、动作和路由成本，不再从步骤名称推测资源使用。
 - `computer.verify` 支持窗口指纹/标题、元素状态和值、浏览器 URL、限定目录内文件断言。
@@ -36,19 +37,19 @@
 
 ## 当前验证证据
 
-- `npm test`：81 项自动测试通过；`npm run test:ci`：78 项通过。
+- `npm test`：83 项自动测试通过；`npm run test:ci`：80 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
 - Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具，并真实调用 `computer_state` 得到 `execution.backgroundOnly: true`。`scripts/verify-deepseek-harness.js` 可重复执行 discovery 验收。
-- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 68 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录已提交 npm lockfile，满足 setup-node 缓存和 `npm ci`。
+- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 80 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录包含 npm lockfile。旧 workflow 因远端提交缺少 lockfile 导致 setup-node 缓存初始化失败，当前 workflow 不依赖 npm 缓存，发布后再以远端 Actions 结果验收。
 
 ## 下一阶段
 
 1. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
 2. Edge 独立实例 benchmark 已完成。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
 3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
-4. 用真实 provider benchmark 流式 tool-call 早调度收益；可插拔 action-ID 分类器接口已完成，后续以真实模型/本地分类器 benchmark 选择默认实现。
+4. 用真实 provider benchmark 流式 tool-call 早调度收益；默认本地 action-ID 分类器和可插拔接口已完成，后续用真实任务 benchmark 调整阈值，并与小型本地分类模型比较。
 5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。
    - Provider benchmark 工具已完成，可比较标准/流式 native tool call 的成功率、P50/P95、首调用延迟、token 和费用；真实排名等待用户通过环境变量配置候选 provider，不读取受保护 key 文件。
 6. 发布：已于 2026-08-13 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
