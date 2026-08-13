@@ -9,6 +9,15 @@ const TOOL_NAMES = new Set([
   'computer.cancel'
 ]);
 
+const TOOL_ALIASES = new Map([
+  ['shortcut_run', 'shortcut.run'],
+  ['computer_invoke', 'computer.invoke'],
+  ['computer_state', 'computer.state'],
+  ['computer_inspect', 'computer.inspect'],
+  ['computer_verify', 'computer.verify'],
+  ['computer_cancel', 'computer.cancel']
+]);
+
 const TOOL_DEFINITIONS = [
   {
     type: 'function',
@@ -62,9 +71,10 @@ function normalizeArguments(value) {
 }
 
 function makeToolCall(name, args, id = null) {
-  if (!TOOL_NAMES.has(name)) throw new Error('tool_call_unknown_tool');
+  const canonicalName = TOOL_ALIASES.get(name) || name;
+  if (!TOOL_NAMES.has(canonicalName)) throw new Error('tool_call_unknown_tool');
   const argumentsValue = normalizeArguments(args);
-  return { type: 'tool_call', ...(id ? { id: String(id) } : {}), name, arguments: argumentsValue };
+  return { type: 'tool_call', ...(id ? { id: String(id) } : {}), name: canonicalName, arguments: argumentsValue };
 }
 
 function normalizeToolCall(value) {

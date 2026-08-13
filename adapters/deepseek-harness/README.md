@@ -69,6 +69,10 @@ without that prefix in an agent reply; the six raw names remain:
 - `mcp__computer_use_plus__computer_verify`
 - `mcp__computer_use_plus__computer_cancel`
 
+The internal tool-call router also accepts the six short presentation names
+(`computer_state`, `shortcut_run`, and the other four) and canonicalizes them
+before applying the normal validation, risk policy, and execution path.
+
 The profile deliberately hides low-level compatibility and administration
 tools. Run shortcuts first, inspect once only when needed, submit actions as one
 batch, and verify the final state. A high-risk result returns a single-use
