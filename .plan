@@ -35,11 +35,11 @@
 
 ## 当前验证证据
 
-- `npm test`：76 项自动测试通过；`npm run test:ci`：73 项通过。
+- `npm test`：77 项自动测试通过；`npm run test:ci`：74 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
-- Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具。`scripts/verify-deepseek-harness.js` 可重复执行该验收。
+- Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具，并真实调用 `computer_state` 得到 `execution.backgroundOnly: true`。`scripts/verify-deepseek-harness.js` 可重复执行 discovery 验收。
 - GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 68 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录已提交 npm lockfile，满足 setup-node 缓存和 `npm ci`。
 
 ## 下一阶段

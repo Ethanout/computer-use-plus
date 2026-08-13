@@ -95,6 +95,13 @@ test('state can return one action-ready UI snapshot with reusable refs', async (
   assert.equal(acted.ok, true);
 });
 
+test('state explicitly reports whether execution is isolated from the foreground desktop', async () => {
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: { stats: () => ({ records: 0 }) }, executionMode: 'backgroundOnly' });
+  const state = await engine.state();
+  assert.equal(state.execution.mode, 'backgroundOnly');
+  assert.equal(state.execution.backgroundOnly, true);
+});
+
 test('verify supports title, element, fingerprint and bounded file assertions', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-verify-'));
   const file = path.join(dir, 'result.txt');
