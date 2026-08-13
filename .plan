@@ -35,7 +35,7 @@
 
 ## 当前验证证据
 
-- `npm test`：74 项自动测试通过；`npm run test:ci`：71 项通过。
+- `npm test`：76 项自动测试通过；`npm run test:ci`：73 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
@@ -49,6 +49,7 @@
 3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
 4. 用真实 provider benchmark 流式 tool-call 早调度收益；可插拔 action-ID 分类器接口已完成，后续以真实模型/本地分类器 benchmark 选择默认实现。
 5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。
+   - Provider benchmark 工具已完成，可比较标准/流式 native tool call 的成功率、P50/P95、首调用延迟、token 和费用；真实排名等待用户通过环境变量配置候选 provider，不读取受保护 key 文件。
 6. 发布：已于 2026-08-13 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
 
 ## DeepSeek Harness 使用方式
