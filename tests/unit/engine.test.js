@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { ComputerEngine } = require('../../src/engine');
+const { ComputerEngine, summarizeOrganizationCandidates } = require('../../src/engine');
 const { MockDriver } = require('../../src/drivers/mock');
 const { MemoryStore } = require('../../src/memory');
 
@@ -300,4 +300,51 @@ test('organize AI returns a proposal without applying it unless applyAi is expli
   const applied = await engine.manageShortcut({ action: 'organize', window: 'mock-1', useAi: true, applyAi: true });
   assert.equal(applied.applied.length, 1);
   assert.equal(memory.listWorkflows('mock|mock').length, 0);
+});
+
+test('maintenance automatically creates a review-only organization proposal when due', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-auto-organize-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  let calls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory,
+    fastAi: {
+      status: () => ({ configured: true, model: 'mock-organizer' }),
+      organize: async () => { calls += 1; return { model: 'mock-organizer', operations: [{ op: 'archive', name: 'open resource settings' }], usage: { input_tokens: 20, output_tokens: 5 } }; }
+    }
+  });
+  const common = { window: 'mock-1', beforeFingerprint: 'menu', afterFingerprint: 'done' };
+  await engine.manageShortcut({ action: 'save', ...common, name: 'open settings', actions: [{ kbseq: ['ESC'] }, { click: { text: 'Options' } }, { click: { text: 'Done' } }] });
+  await engine.manageShortcut({ action: 'save', ...common, name: 'open resource settings', actions: [{ kbseq: ['ESC'] }, { click: { text: 'Options' } }, { click: { text: 'Resource Packs' } }, { click: { text: 'Done' } }] });
+  memory.workflowChanges = 50;
+  const result = await engine.runMaintenance();
+  assert.equal(result.organized, true);
+  assert.equal(calls, 1);
+  assert.equal(memory.stats().workflows, 2);
+  assert.equal(memory.stats().organization.pendingProposals, 1);
+  assert.equal(engine.metrics.modelInputTokens, 20);
+  const review = await engine.manageShortcut({ action: 'organize', window: 'mock-1' });
+  assert.equal(review.proposal.operations[0].op, 'archive');
+  clearInterval(engine.maintenanceTimer);
+});
+
+test('maintenance never calls an unconfigured organization AI', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-no-auto-organize-'));
+  let calls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory: new MemoryStore(path.join(dir, 'memory.json')),
+    fastAi: { status: () => ({ configured: false }), organize: async () => { calls += 1; } }
+  });
+  const result = await engine.runMaintenance();
+  assert.equal(result.reason, 'organizer_not_configured');
+  assert.equal(calls, 0);
+  clearInterval(engine.maintenanceTimer);
+});
+
+test('organization AI receives redacted action shapes instead of values or coordinates', () => {
+  const summary = summarizeOrganizationCandidates([{ similarity: 0.9, left: { name: 'fill form', scope: 'single', uses: 3, actions: [{ setValue: { value: 'private text', x: 123, y: 456, role: 'edit' } }] }, right: { name: 'fill other', actions: [{ click: { text: 'Submit', x: 9, y: 8, role: 'button' } }] } }]);
+  const json = JSON.stringify(summary);
+  assert.doesNotMatch(json, /private text|Submit|123|456/);
+  assert.deepEqual(summary[0].left.actionShape[0], { type: 'setValue', role: 'edit' });
+  assert.deepEqual(summary[0].right.actionShape[0], { type: 'click', role: 'button' });
 });
