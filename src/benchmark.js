@@ -20,6 +20,9 @@ class BenchmarkRecorder {
       screenshotBytes: finite(sample.screenshotBytes),
       estimatedCostUsd: finite(sample.estimatedCostUsd),
       recoveryCount: finite(sample.recoveryCount),
+      classifierCalls: finite(sample.classifierCalls),
+      classifierHits: finite(sample.classifierHits),
+      classifierLatencyMs: finite(sample.classifierLatencyMs),
       failureReason: sample.success === true ? null : String(sample.failureReason || 'unknown').slice(0, 200)
     };
     this.samples.push(normalized);
@@ -40,8 +43,10 @@ class BenchmarkRecorder {
         inputTokens: sum(this.samples, 'inputTokens'), outputTokens: sum(this.samples, 'outputTokens'),
         mcpRoundTrips: sum(this.samples, 'mcpRoundTrips'), screenshots: sum(this.samples, 'screenshots'),
         screenshotBytes: sum(this.samples, 'screenshotBytes'), estimatedCostUsd: sum(this.samples, 'estimatedCostUsd'),
-        recoveryCount: sum(this.samples, 'recoveryCount')
+        recoveryCount: sum(this.samples, 'recoveryCount'), classifierCalls: sum(this.samples, 'classifierCalls'),
+        classifierHits: sum(this.samples, 'classifierHits'), classifierLatencyMs: sum(this.samples, 'classifierLatencyMs')
       },
+      classifier: classifierSummary(this.samples),
       byStrategy: group(this.samples, 'strategy'),
       byApplication: group(this.samples, 'application')
     };
@@ -50,6 +55,10 @@ class BenchmarkRecorder {
 
 function finite(value) { const number = Number(value || 0); return Number.isFinite(number) && number >= 0 ? number : 0; }
 function sum(items, key) { return items.reduce((total, item) => total + finite(item[key]), 0); }
+function classifierSummary(items) {
+  const calls = sum(items, 'classifierCalls');
+  return { hitRate: calls ? sum(items, 'classifierHits') / calls : 0, averageLatencyMs: calls ? sum(items, 'classifierLatencyMs') / calls : 0 };
+}
 function percentile(sorted, ratio) {
   if (!sorted.length) return 0;
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))];
