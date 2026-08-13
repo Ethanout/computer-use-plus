@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { extractToolCall, ToolCallAccumulator } = require('../../src/tool-call');
+const { extractToolCall, normalizeToolCall, ToolCallAccumulator } = require('../../src/tool-call');
 const { buildRequest } = require('../../src/providers');
 const { ToolCallProvider } = require('../../src/providers');
 const { ComputerEngine } = require('../../src/engine');
@@ -18,6 +18,15 @@ test('normalizes OpenAI, Anthropic and Gemini tool calls', () => {
   assert.equal(openai.name, 'computer.invoke');
   assert.equal(anthropic.arguments.shortcut_id, 'save');
   assert.equal(gemini.name, 'computer.inspect');
+});
+
+test('normalizes DeepSeek Harness short tool names to canonical names', () => {
+  assert.deepEqual(normalizeToolCall({ type: 'tool_call', name: 'computer_state', arguments: {} }), {
+    type: 'tool_call', name: 'computer.state', arguments: {}
+  });
+  assert.deepEqual(normalizeToolCall({ type: 'tool_call', name: 'shortcut_run', arguments: { shortcut_id: 'demo' } }), {
+    type: 'tool_call', name: 'shortcut.run', arguments: { shortcut_id: 'demo' }
+  });
 });
 
 test('assembles streamed tool-call argument fragments', () => {
