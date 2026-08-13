@@ -51,3 +51,12 @@ test('Harness verification script checks the exact low-token tool surface', () =
   assert.match(source, /harness_computer_state_invalid/);
   assert.doesNotMatch(source, /deepseek\.txt/i);
 });
+
+test('migration guide separates normal MCP and Harness tool names without key migration', () => {
+  const guide = fs.readFileSync(path.join(__dirname, '../../docs/migration.md'), 'utf8');
+  assert.match(guide, /D:\\projects\\computer-use-plus/);
+  assert.match(guide, /computer\.invoke/);
+  assert.match(guide, /shortcut_run/);
+  assert.match(guide, /不要迁移或扫描旧 key/);
+  assert.doesNotMatch(guide, /deepseek\.txt/i);
+});

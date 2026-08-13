@@ -93,7 +93,7 @@ $env:COMPUTER_USE_PLUS_AI_MODEL='gpt-4o-mini'
 
 DeepSeek Harness overlay、安装和真实 Host 验证见 [adapter 文档](adapters/deepseek-harness/README.md)。配置好 Harness profile 后可运行 `npm run verify:harness`，严格核对六个低 token MCP 工具是否被发现。
 
-Edge、Minecraft、微信独立实例的 benchmark 配置见 [benchmark 文档](docs/benchmarks/README.md)。所有 suite 默认 dry-run，真实启动必须显式传 `--execute`；Minecraft 和微信还要求用户指定独立实例命令，绝不自动附着当前前台实例。
+Edge、Minecraft、微信、QQ 独立实例的 benchmark 配置见 [benchmark 文档](docs/benchmarks/README.md)。所有 suite 默认 dry-run，真实启动必须显式传 `--execute`；Minecraft、微信和 QQ 还要求用户指定独立实例命令，绝不自动附着当前前台实例。旧配置迁移见 [migration.md](docs/migration.md)。
 
 `organize` 默认只返回本地脚本无法确定的候选；明确传入 `useAi:true` 才调用共享 API key 的整理 AI，但默认只返回 proposal，不会修改长期记忆。主 AI 可以通过 `apply` 明确执行 `merge`、`rename` 或 `archive`；也可以在请求 AI 整理时同时传入 `applyAi:true`，明确应用 AI proposal。状态中的 `memory.organization.due` 仅表示达到低频整理阈值，不会自动在每次操作后调用 AI。
 
