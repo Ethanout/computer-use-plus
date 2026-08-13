@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "node --test",
+    "test:ci": "node --test tests/unit/*.test.js tests/integration/protocol.test.js",
     "benchmark": "node scripts/benchmark.js",
     "benchmark:suite": "node scripts/run-benchmark-suite.js"
   },
