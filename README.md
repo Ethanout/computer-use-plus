@@ -1,5 +1,7 @@
 # computer-use-plus
 
+[![test](https://github.com/Ethanout/computer-use-plus/actions/workflows/test.yml/badge.svg)](https://github.com/Ethanout/computer-use-plus/actions/workflows/test.yml)
+
 低 token、低延迟的 Windows computer-use MCP 服务。服务按“预测记忆 -> Windows UIA/Win32 或浏览器 CDP Accessibility Tree -> 本地坐标 OCR -> 严格结构化视觉”逐级选择识别方式，在本地完成语义定位、输入执行、动作批处理、验证和记忆更新。
 
 ## 环境
