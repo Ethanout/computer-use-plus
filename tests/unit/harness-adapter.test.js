@@ -29,3 +29,10 @@ test('Harness Cordis entry launches the stdio server in harness profile', () => 
   assert.match(config, /COMPUTER_USE_PLUS_TOOL_PROFILE: harness/);
   assert.doesNotMatch(config, /API_KEY|deepseek\.txt/i);
 });
+
+test('Harness documentation distinguishes dependency install from composition entry', () => {
+  const readme = fs.readFileSync(path.join(__dirname, '../../adapters/deepseek-harness/README.md'), 'utf8');
+  assert.match(readme, /plugin --profile headless add @deepseek-ai\/dsh-mcp-client/);
+  assert.match(readme, /Do not pass this file directly to\s+`dsh --patch`/);
+  assert.match(readme, /Node\.js `\^22\.19\.0` or `>=24`/);
+});

@@ -171,6 +171,6 @@ npm run benchmark:suite -- docs/benchmarks/edge.json --execute --output .data/ed
 
 ## DeepSeek Harness
 
-DeepSeek Harness 可通过官方 `@deepseek-ai/dsh-mcp-client` 直接连接本服务。将 [adapters/deepseek-harness/cordis.yml](D:/projects/computer-use-plus/adapters/deepseek-harness/cordis.yml) 的条目合并进 Harness composition，并在项目不位于默认位置时设置 `COMPUTER_USE_PLUS_ROOT`。
+DeepSeek Harness 可通过官方 `@deepseek-ai/dsh-mcp-client` 直接连接本服务。Harness 当前要求 Node.js `^22.19.0` 或 `>=24`。先为目标 profile 安装 bridge 依赖，再将 [adapters/deepseek-harness/cordis.yml](D:/projects/computer-use-plus/adapters/deepseek-harness/cordis.yml) 的条目合并进 Harness composition；该新增条目不能直接作为 `--patch` 使用。项目不位于默认位置时设置 `COMPUTER_USE_PLUS_ROOT`。
 
 适配档只公开六个高层、下划线命名的工具，避免 Harness 对点号工具名进行哈希化：`shortcut_run`、`computer_invoke`、`computer_state`、`computer_inspect`、`computer_verify`、`computer_cancel`。完整配置和调用原则见 [adapter README](D:/projects/computer-use-plus/adapters/deepseek-harness/README.md)。
