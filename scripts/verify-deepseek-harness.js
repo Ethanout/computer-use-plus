@@ -25,35 +25,54 @@ if (!dshBin || !fs.existsSync(dshBin)) {
   process.stderr.write(`Harness overlay not found: ${overlay}\n`);
   process.exitCode = 2;
 } else {
-  const args = [dshBin, '--profile', process.env.COMPUTER_USE_PLUS_DSH_PROFILE || 'headless', '--patch', overlay,
-    'List only the available computer-use-plus MCP tool names, then stop.'];
-  const child = spawn(dshNode, args, {
-    cwd: root,
-    windowsHide: true,
-    env: {
-      ...process.env,
-      COMPUTER_USE_PLUS_ROOT: root,
-      DSH_TELEMETRY_MODE: process.env.DSH_TELEMETRY_MODE || 'DISABLED'
+  verify().catch(finish);
+
+  async function verify() {
+    const profile = process.env.COMPUTER_USE_PLUS_DSH_PROFILE || 'headless';
+    const config = await runDsh(['--profile', profile, '--patch', overlay, '--dump-config']);
+    if (!config.includes('mcp-computer-use-plus') || !config.includes('computer_use_plus')) {
+      throw new Error('harness_overlay_not_loaded');
     }
-  });
-  let output = '';
-  child.stdout.on('data', (chunk) => { output += chunk; });
-  child.stderr.on('data', (chunk) => { output += chunk; });
-  child.on('error', (error) => finish(error));
-  child.on('close', (code) => {
-    if (code !== 0) return finish(new Error(`dsh_exit_${code}`));
+    const output = await runDsh(['--profile', profile, '--patch', overlay,
+      'List all computer-use-plus MCP tool names, call computer_state exactly once, then output only one JSON object: {"tools":[all tool names],"backgroundOnly":execution.backgroundOnly,"windowCount":windows.length}.']);
     const full = expectedTools.every((tool) => output.includes(tool));
     const short = expectedShortTools.every((tool) => output.includes(tool));
     if (!full && !short) {
       const missing = expectedTools.filter((tool, index) => !output.includes(tool) && !output.includes(expectedShortTools[index]));
-      return finish(new Error(`harness_tools_missing:${missing.join(',')}`));
+      throw new Error(`harness_tools_missing:${missing.join(',')}`);
     }
-    process.stdout.write(`${JSON.stringify({ ok: true, tools: full ? expectedTools : expectedShortTools, presentation: full ? 'server-qualified' : 'short', profile: process.env.COMPUTER_USE_PLUS_DSH_PROFILE || 'headless' })}\n`);
-  });
+    const state = parseLastJsonObject(output);
+    if (!state || state.backgroundOnly !== true || !Number.isInteger(state.windowCount) || state.windowCount < 0) {
+      throw new Error('harness_computer_state_invalid');
+    }
+    process.stdout.write(`${JSON.stringify({ ok: true, tools: full ? expectedTools : expectedShortTools, presentation: full ? 'server-qualified' : 'short', profile, state: { backgroundOnly: state.backgroundOnly, windowCount: state.windowCount } })}\n`);
+  }
+
+  function runDsh(args) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(dshNode, [dshBin, ...args], {
+        cwd: root,
+        windowsHide: true,
+        env: { ...process.env, COMPUTER_USE_PLUS_ROOT: root, DSH_TELEMETRY_MODE: process.env.DSH_TELEMETRY_MODE || 'DISABLED' }
+      });
+      let output = '';
+      child.stdout.on('data', (chunk) => { output += chunk; });
+      child.stderr.on('data', (chunk) => { output += chunk; });
+      child.on('error', reject);
+      child.on('close', (code) => code === 0 ? resolve(output) : reject(new Error(`dsh_exit_${code}:${output}`)));
+    });
+  }
+
+  function parseLastJsonObject(output) {
+    const lines = String(output).trim().split(/\r?\n/).reverse();
+    for (const line of lines) {
+      try { return JSON.parse(line); } catch { /* Search prior lines for the Host's final JSON object. */ }
+    }
+    return null;
+  }
 
   function finish(error) {
     process.stderr.write(`${error.message}\n`);
-    if (output) process.stderr.write(output);
     process.exitCode = 1;
   }
 }

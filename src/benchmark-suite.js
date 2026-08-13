@@ -23,20 +23,27 @@ class BenchmarkSuiteRunner {
     if (!suite || typeof suite !== 'object') throw new Error('benchmark_suite_required');
     if (!String(suite.name || '').trim()) throw new Error('benchmark_suite_name_required');
     if (!Array.isArray(suite.tasks) || !suite.tasks.length) throw new Error('benchmark_suite_tasks_required');
+    this.validateSteps(suite.setup, 'benchmark_setup_steps_invalid');
+    this.validateSteps(suite.teardown, 'benchmark_teardown_steps_invalid');
     if (suite.tasks.length > 100) throw new Error('benchmark_suite_tasks_limit');
     const ids = new Set();
     for (const task of suite.tasks) {
       const id = String(task?.id || '').trim();
       if (!id || ids.has(id)) throw new Error('benchmark_task_id_invalid');
       ids.add(id);
-      if (!Array.isArray(task.steps) || !task.steps.length || task.steps.length > 100) throw new Error('benchmark_task_steps_invalid');
-      for (const step of task.steps) {
+      this.validateSteps(task.steps, 'benchmark_task_steps_invalid', true);
+    }
+    return suite;
+  }
+
+  validateSteps(steps, errorCode, required = false) {
+    if (steps === undefined && !required) return;
+    if (!Array.isArray(steps) || !steps.length || steps.length > 100) throw new Error(errorCode);
+    for (const step of steps) {
         if (!ALLOWED_TOOLS.has(step?.tool)) throw new Error('benchmark_tool_not_allowed');
         if (step.arguments !== undefined && (!step.arguments || typeof step.arguments !== 'object' || Array.isArray(step.arguments))) throw new Error('benchmark_arguments_invalid');
         if (step.expect !== undefined && (!step.expect || typeof step.expect !== 'object' || Array.isArray(step.expect))) throw new Error('benchmark_expect_invalid');
-      }
     }
-    return suite;
   }
 
   checkRequirements(requirements = {}) {
@@ -53,30 +60,22 @@ class BenchmarkSuiteRunner {
     const requirements = this.checkRequirements(suite.requirements || {});
     const recorder = new BenchmarkRecorder({ suite: suite.name, application: suite.application || 'unknown', dryRun });
     const tasks = [];
-    for (const task of suite.tasks) {
+    const setup = requirements.ok ? await this.runSteps(suite.setup || [], dryRun) : [];
+    let setupFailed = setup.some((step) => !step.ok);
+    try {
+      for (const task of suite.tasks) {
       const repeats = Math.max(1, Math.min(Number(task.repeats || suite.repeats || 1), 20));
       for (let iteration = 1; iteration <= repeats; iteration += 1) {
         const started = Date.now();
         const metricsBefore = await this.metricSnapshot();
-        let success = requirements.ok;
-        let failureReason = requirements.ok ? null : 'requirements_not_met';
+        let success = requirements.ok && !setupFailed;
+        let failureReason = !requirements.ok ? 'requirements_not_met' : (setupFailed ? 'benchmark_setup_failed' : null);
         const steps = [];
-        if (requirements.ok) {
-          for (const step of task.steps) {
-            if (dryRun) {
-              steps.push({ tool: step.tool, ok: true, dryRun: true });
-              continue;
-            }
-            if (!this.callTool) throw new Error('benchmark_call_tool_required');
-            try {
-              const result = await this.callTool(step.tool, interpolateEnvironment(step.arguments || {}, this.env));
-              const passed = result?.ok !== false && result?.isError !== true && resultMatches(result, step.expect);
-              steps.push({ tool: step.tool, ok: passed, result: compactResult(result), ...(step.expect ? { expect: step.expect } : {}) });
-              if (!passed) { success = false; failureReason = result?.reason || expectationFailure(step.expect) || `${step.tool}_failed`; break; }
-            } catch (error) {
-              success = false; failureReason = error.message; steps.push({ tool: step.tool, ok: false, reason: error.message }); break;
-            }
-          }
+        if (success) {
+          const executed = await this.runSteps(task.steps, dryRun);
+          steps.push(...executed);
+          const failure = executed.find((step) => !step.ok);
+          if (failure) { success = false; failureReason = failure.reason || failure.result?.reason || expectationFailure(failure.expect) || `${failure.tool}_failed`; }
         }
         const metricDelta = metricsDifference(metricsBefore, await this.metricSnapshot());
         const sample = recorder.record({
@@ -101,8 +100,27 @@ class BenchmarkSuiteRunner {
         });
         tasks.push({ id: task.id, iteration, success, failureReason, steps, sample });
       }
+      }
+    } finally {
+      await this.runSteps(suite.teardown || [], dryRun);
     }
-    return { ok: requirements.ok && tasks.every((item) => item.success), dryRun, requirements, tasks, summary: recorder.summary() };
+    return { ok: requirements.ok && !setupFailed && tasks.every((item) => item.success), dryRun, requirements, setup, tasks, summary: recorder.summary() };
+  }
+
+  async runSteps(steps, dryRun) {
+    const results = [];
+    for (const step of steps) {
+      if (dryRun) { results.push({ tool: step.tool, ok: true, dryRun: true }); continue; }
+      if (!this.callTool) throw new Error('benchmark_call_tool_required');
+      try {
+        const result = await this.callTool(step.tool, interpolateEnvironment(step.arguments || {}, this.env));
+        const passed = result?.ok !== false && result?.isError !== true && resultMatches(result, step.expect);
+        const entry = { tool: step.tool, ok: passed, result: compactResult(result), ...(step.expect ? { expect: step.expect } : {}) };
+        results.push(entry);
+        if (!passed) break;
+      } catch (error) { results.push({ tool: step.tool, ok: false, reason: error.message }); break; }
+    }
+    return results;
   }
 
   async metricSnapshot() {

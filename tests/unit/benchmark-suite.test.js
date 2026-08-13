@@ -23,6 +23,15 @@ test('benchmark suite dry-run validates tasks without tool side effects', async 
   assert.equal(calls, 0);
 });
 
+test('benchmark suite runs setup once, times only tasks, and always tears down', async () => {
+  const calls = [];
+  const runner = new BenchmarkSuiteRunner({ callTool: async (tool, args) => { calls.push(`${tool}:${args.action}`); return { ok: true }; } });
+  const result = await runner.run({ name: 'lifecycle', setup: [{ tool: 'computer.browser', arguments: { action: 'launch' } }], teardown: [{ tool: 'computer.browser', arguments: { action: 'stop' } }], tasks: [{ id: 'inspect', repeats: 2, steps: [{ tool: 'computer.browser', arguments: { action: 'inspect' } }] }] }, { dryRun: false });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, ['computer.browser:launch', 'computer.browser:inspect', 'computer.browser:inspect', 'computer.browser:stop']);
+  assert.equal(result.setup.length, 1);
+});
+
 test('benchmark suite reports unmet requirements and rejects unknown tools', async () => {
   const runner = new BenchmarkSuiteRunner({ platform: 'win32', env: {} });
   const result = await runner.run(suite, { dryRun: true });
