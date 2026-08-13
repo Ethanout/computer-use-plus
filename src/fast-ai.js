@@ -54,6 +54,16 @@ class FastAiClient {
     return call;
   }
 
+  async planToolCallStream({ goal, snapshot, params = {}, maxActions = 20, window, onToolCall }) {
+    return this.provider.callStream({
+      system: this.systemPrompt,
+      user: { goal, window, params, maxActions: clamp(maxActions, 1, 100, 20), snapshot },
+      tools: TOOL_DEFINITIONS,
+      toolChoice: 'auto',
+      onToolCall
+    });
+  }
+
   async plan({ goal, snapshot, params = {}, maxActions = 20 }) {
     return this.requestJson({
       system: `${this.systemPrompt}\n兼容模式下只输出 {"actions":[...]}。`,

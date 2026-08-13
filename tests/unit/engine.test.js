@@ -170,6 +170,29 @@ test('optional fast AI executes the current plan without writing long-term workf
   assert.equal(memory.stats().workflows, 0);
 });
 
+test('opt-in streamed fast AI executes the first complete tool call only once', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-fast-stream-'));
+  let callbacks = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(),
+    memory: new MemoryStore(path.join(dir, 'memory.json')),
+    fastAi: {
+      status: () => ({ configured: true, model: 'mock-fast' }),
+      planToolCallStream: async ({ onToolCall }) => {
+        const call = { type: 'tool_call', id: 'stream-1', name: 'computer.invoke', arguments: { actions: [{ kbseq: ['A'] }] }, model: 'mock-fast' };
+        callbacks += 1;
+        await onToolCall(call);
+        return call;
+      }
+    }
+  });
+  const output = await engine.fastAct({ window: 'mock-1', goal: 'press A', stream: true });
+  assert.equal(output.ok, true);
+  assert.equal(output.source, 'fast-ai-tool-call-stream');
+  assert.equal(callbacks, 1);
+  assert.equal(engine.metrics.toolCalls, 1);
+});
+
 test('shortcut run uses saved defaults and lets callers override fractional seconds', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-shortcut-'));
   const memory = new MemoryStore(path.join(dir, 'memory.json'));

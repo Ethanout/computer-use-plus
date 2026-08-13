@@ -49,6 +49,64 @@ test('provider consumes SSE tool-call deltas without exposing prose', async () =
   assert.equal(call.arguments.actions[0].kbseq[0], 'A');
 });
 
+test('provider dispatches a complete streamed tool call before the stream ends', async () => {
+  const encoder = new TextEncoder();
+  const chunks = [
+    'data: {"choices":[{"delta":{"id":"c1","function":{"name":"computer.inspect","arguments":"{\\"window\\":\\"1\\"}"}}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"ignored prose"}}]}\n\n',
+    'data: [DONE]\n\n'
+  ];
+  const seen = [];
+  const provider = new ToolCallProvider({ apiKey: 'secret', baseUrl: 'https://example.test/v1', model: 'mock', fetch: async () => ({ ok: true, body: (async function* () { for (const chunk of chunks) yield encoder.encode(chunk); })() }) });
+  const call = await provider.callStream({ system: 's', user: {}, onToolCall: async (value) => seen.push(value) });
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].name, 'computer.inspect');
+  assert.equal(call.arguments.window, '1');
+});
+
+test('provider keeps simultaneous streamed tool calls separate and ignores prose deltas', async () => {
+  const encoder = new TextEncoder();
+  const chunks = [
+    'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"computer.inspect","arguments":"{\\"window\\":\\"1\\"}"}},{"index":1,"id":"c2","function":{"name":"computer.state","arguments":"{\\"window\\":\\"2\\"}"}}]}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"ignored prose"}}]}\n\n',
+    'data: [DONE]\n\n'
+  ];
+  const seen = [];
+  const provider = new ToolCallProvider({ apiKey: 'secret', baseUrl: 'https://example.test/v1', model: 'mock', fetch: async () => ({ ok: true, body: (async function* () { for (const chunk of chunks) yield encoder.encode(chunk); })() }) });
+  const call = await provider.callStream({ system: 's', user: {}, onToolCall: async (value) => seen.push(value) });
+  assert.deepEqual(seen.map((value) => [value.id, value.name, value.arguments.window]), [['c1', 'computer.inspect', '1'], ['c2', 'computer.state', '2']]);
+  assert.equal(call.id, 'c1');
+});
+
+test('provider assembles Responses events split across transport chunks', async () => {
+  const encoder = new TextEncoder();
+  const chunks = [
+    'data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"item-1","call_id":"call-1","name":"computer.inspect","arguments":""}}\n',
+    '\ndata: {"type":"response.function_call_arguments.delta","output_index":0,"item_id":"call-1","delta":"{\\"window\\":\\"1\\"}"}\n\ndata: [DONE]\n\n'
+  ];
+  const seen = [];
+  const provider = new ToolCallProvider({ apiKey: 'secret', baseUrl: 'https://example.test/v1/responses', model: 'mock', protocol: 'responses', fetch: async () => ({ ok: true, body: (async function* () { for (const chunk of chunks) yield encoder.encode(chunk); })() }) });
+  const call = await provider.callStream({ system: 's', user: {}, onToolCall: async (value) => seen.push(value) });
+  assert.equal(seen.length, 1);
+  assert.equal(call.id, 'call-1');
+  assert.equal(call.arguments.window, '1');
+});
+
+test('Gemini streaming requests use the SSE streaming endpoint', () => {
+  const request = buildRequest('gemini', { baseUrl: 'https://example.test/v1', apiKey: 'secret', model: 'fast', system: 's', user: {}, tools: [], toolChoice: 'auto', stream: true });
+  assert.match(request.endpoint, /:streamGenerateContent\?alt=sse$/);
+});
+
+test('provider dispatches a Gemini streamed function call', async () => {
+  const encoder = new TextEncoder();
+  const chunks = ['data: {"candidates":[{"index":0,"content":{"parts":[{"functionCall":{"name":"computer.state","args":{"window":"3"}}}]}}]}\n\ndata: [DONE]\n\n'];
+  const seen = [];
+  const provider = new ToolCallProvider({ apiKey: 'secret', baseUrl: 'https://example.test/v1', model: 'mock', protocol: 'gemini', fetch: async () => ({ ok: true, body: (async function* () { for (const chunk of chunks) yield encoder.encode(chunk); })() }) });
+  const call = await provider.callStream({ system: 's', user: {}, onToolCall: async (value) => seen.push(value) });
+  assert.equal(seen.length, 1);
+  assert.equal(call.arguments.window, '3');
+});
+
 test('high-risk native actions require a single-use confirmation token', async () => {
   const memory = new MemoryStore(path.join(process.cwd(), '.data-check', `tool-call-${Date.now()}.json`));
   const engine = new ComputerEngine({ driver: new MockDriver(), memory });

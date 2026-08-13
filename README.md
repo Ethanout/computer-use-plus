@@ -67,6 +67,8 @@ npm start
 
 高层等待统一使用秒并允许小数，`0.3` 表示 300 毫秒。只有精确键盘时间轴 `kbops.at` 保留毫秒；执行层会把秒换算为整数毫秒。
 
+`computer.fast` 可显式传 `"stream": true`。服务会持续读取模型响应，并在首个 native tool call 的参数成为完整 JSON 时立即送入原有执行和高风险确认链，不等待模型流结束；同一规划响应只执行第一个工具调用。默认不启用，便于兼容不支持流式 tool call 的 provider。
+
 主 AI 可以显式保存模板化 shortcut，后续复用不需要再次调用 AI。可选 AI 配置和用户拒绝时的跳过流程见 [agent.md](D:/projects/computer-use-plus/agent.md)。快速 AI 与整理 AI 使用同一个 API key，不配置也不影响本地功能：
 
 ```powershell
