@@ -1,0 +1,38 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22.19.0']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm test
+      - name: Smoke-test Harness tool profile
+        shell: pwsh
+        run: |
+          $env:COMPUTER_USE_PLUS_TOOL_PROFILE = 'harness'
+          $lines = @(
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}',
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+          )
+          $output = $lines | node src/index.js
+          $tools = ($output[1] | ConvertFrom-Json).result.tools.name
+          $expected = @('computer_state', 'computer_inspect', 'computer_invoke', 'shortcut_run', 'computer_verify', 'computer_cancel')
+          if (Compare-Object $expected $tools) {
+            throw "Unexpected Harness tools: $($tools -join ', ')"
+          }
