@@ -37,3 +37,13 @@ test('Harness documentation distinguishes dependency install from composition en
   assert.match(readme, /can be passed directly to DSH/);
   assert.match(readme, /Node\.js `\^22\.19\.0` or `>=24`/);
 });
+
+test('Harness verification script checks the exact low-token tool surface', () => {
+  const source = fs.readFileSync(path.join(process.cwd(), 'scripts', 'verify-deepseek-harness.js'), 'utf8');
+  for (const name of ['computer_cancel', 'computer_inspect', 'computer_invoke', 'computer_state', 'computer_verify', 'shortcut_run']) {
+    assert.match(source, new RegExp(`mcp__computer_use_plus__${name}`));
+  }
+  assert.match(source, /DSH_TELEMETRY_MODE/);
+  assert.match(source, /expectedShortTools/);
+  assert.doesNotMatch(source, /deepseek\.txt/i);
+});

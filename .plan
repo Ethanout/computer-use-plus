@@ -34,17 +34,17 @@
 
 ## 当前验证证据
 
-- `npm test`：71 项自动测试通过；`npm run test:ci`：68 项通过。
+- `npm test`：73 项自动测试通过；`npm run test:ci`：70 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
-- Edge 独立 profile / CDP 真实 smoke：`data:` 页面冷启动端到端约 1.389 秒，3 次 MCP 往返；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
+- Edge 独立 profile / CDP 真实 smoke：2026-08-14 再测 `data:` 页面冷启动、ready、list、inspect 端到端 2.174 秒，3 次本地调用、0 截图、0 token；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
-- Harness `0.1.0-rc.6` 已实际执行 `--patch ... --dump-config`，确认 `insert` overlay 被正确加入 composition。完整 host 启动在 MCP discovery 前被上游预览包缺失依赖阻断；adapter 本身的 schema 已通过。
+- Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具。`scripts/verify-deepseek-harness.js` 可重复执行该验收。
 - GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 68 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录已提交 npm lockfile，满足 setup-node 缓存和 `npm ci`。
 
 ## 下一阶段
 
-1. 在 DeepSeek Harness 修复 `rc.6` 预览包依赖或使用完整 pnpm profile 后，继续实际 host 工具发现和一次无 key 本地调用验收；overlay 解析已完成。
-2. 使用独立实例运行 Edge、Minecraft、微信 benchmark；记录 shortcut/UIA/CDP/OCR/视觉路径的成功率、P50/P95、token、截图和成本。
+1. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
+2. Edge 独立实例 benchmark 已完成。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
 3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
 4. 用真实 provider benchmark 流式 tool-call 早调度收益；可插拔 action-ID 分类器接口已完成，后续以真实模型/本地分类器 benchmark 选择默认实现。
 5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。

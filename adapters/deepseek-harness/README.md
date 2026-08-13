@@ -5,8 +5,8 @@ the existing MCP stdio server instead of duplicating the computer-use runtime.
 
 ## Configure
 
-DeepSeek Harness currently requires Node.js `^22.19.0` or `>=24`. Install the
-official bridge into the profile that will use computer-use-plus:
+DeepSeek Harness requires Node.js `^22.19.0` or `>=24`. Install the official
+bridge into the profile that will use computer-use-plus:
 
 ```powershell
 npx @deepseek-ai/dsh plugin --profile headless add @deepseek-ai/dsh-mcp-client
@@ -29,14 +29,20 @@ Validate composition loading without an API key:
 npx @deepseek-ai/dsh --profile headless --patch D:\projects\computer-use-plus\adapters\deepseek-harness\cordis.yml --dump-config
 ```
 
-The adapter overlay was parsed successfully against `@deepseek-ai/dsh` and
-`@deepseek-ai/dsh-mcp-client` `0.1.0-rc.6`. On 2026-08-13, a full headless Host
-startup through `npx` was blocked before MCP discovery by missing dependencies
-inside the upstream preview install (`typebox`, OpenTelemetry exporter base,
-and Domino). This is an upstream Harness packaging issue, not a
-computer-use-plus MCP initialization failure. Use Node.js 22.19+ or 24+, install
-the profile dependencies with pnpm, and re-run the command as Harness releases
-are updated.
+The adapter was verified on 2026-08-14 with the published
+`@deepseek-ai/dsh`/`@deepseek-ai/dsh-mcp-client` `0.1.0-rc.6`, Node 24, and an
+actual headless Host turn. The Host discovered all six tools listed below.
+Re-run that verification from a configured Harness profile with:
+
+```powershell
+$env:COMPUTER_USE_PLUS_DSH_NODE='C:\\path\\to\\node.exe'
+$env:COMPUTER_USE_PLUS_DSH_BIN='C:\\path\\to\\node_modules\\@deepseek-ai\\dsh\\lib\\bin.js'
+node D:\projects\computer-use-plus\scripts\verify-deepseek-harness.js
+```
+
+The verification command uses the profile's normal model credentials solely to
+ask the Host to list tools. It does not configure or read a computer-use-plus
+AI key.
 
 If the project is elsewhere, set:
 
@@ -44,8 +50,10 @@ If the project is elsewhere, set:
 $env:COMPUTER_USE_PLUS_ROOT='D:\projects\computer-use-plus'
 ```
 
-The adapter enables `COMPUTER_USE_PLUS_TOOL_PROFILE=harness`. Harness therefore
-sees six stable, low-token tools:
+The adapter enables `COMPUTER_USE_PLUS_TOOL_PROFILE=harness`. The MCP bridge
+registers six stable, low-token names with its `mcp__computer_use_plus__`
+namespace. Harness's current tool-presentation layer may show the same names
+without that prefix in an agent reply; the six raw names remain:
 
 - `mcp__computer_use_plus__shortcut_run`
 - `mcp__computer_use_plus__computer_invoke`
