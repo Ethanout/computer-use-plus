@@ -33,17 +33,19 @@
 
 ## 当前验证证据
 
-- `npm test`：58 项自动测试通过。
+- `npm test`：65 项自动测试通过；`npm run test:ci`：62 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：`data:` 页面冷启动端到端约 1.389 秒，3 次 MCP 往返；该值包含浏览器冷启动，不能视为单次 CDP 延迟。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
+- Harness `0.1.0-rc.6` 已实际执行 `--patch ... --dump-config`，确认 `insert` overlay 被正确加入 composition。完整 host 启动在 MCP discovery 前被上游预览包缺失依赖阻断；adapter 本身的 schema 已通过。
+- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上均通过，覆盖 62 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测。
 
 ## 下一阶段
 
-1. 在安装了 DeepSeek Harness 的目标环境做实际 host 连接、工具发现和一次无 key 本地调用验收。
+1. 在 DeepSeek Harness 修复 `rc.6` 预览包依赖或使用完整 pnpm profile 后，继续实际 host 工具发现和一次无 key 本地调用验收；overlay 解析已完成。
 2. 使用独立实例运行 Edge、Minecraft、微信 benchmark；记录 shortcut/UIA/CDP/OCR/视觉路径的成功率、P50/P95、token、截图和成本。
 3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
-4. 把 provider 的流式 tool-call 接入完整 agent loop，使参数校验完成后能尽早执行；为本地 action-ID 路由加入可插拔分类器基准。
+4. 把 provider 的流式 tool-call 接入完整 agent loop，使参数校验完成后能尽早执行。可插拔 action-ID 分类器接口已完成，后续以真实模型/本地分类器 benchmark 选择默认实现。
 5. 用真实 benchmark 选择默认模型组合。验收目标：shortcut P95 小于 100ms，UIA/CDP P95 小于 300ms，本地 OCR P95 小于 800ms；冷启动数据独立统计。
 6. 发布：已于 2026-08-13 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
 
@@ -62,6 +64,6 @@ Harness profile 只公开：
 
 这样避免点号工具名在 Harness 中被规范化并附加哈希，减少工具 schema 与调用 token。
 
-## 发布前置条件
+## 发布状态
 
-远程发布需要明确的 GitHub/GitLab 目标仓库 URL 或名称。没有该目标时，只能完成本地 Git 初始化和提交，不能安全假设用户账户或公开性。
+公开仓库：https://github.com/Ethanout/computer-use-plus

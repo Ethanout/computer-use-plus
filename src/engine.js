@@ -13,7 +13,7 @@ const { FastAiClient } = require('./fast-ai');
 const { StructuredVisionClient } = require('./vision');
 const { CdpDriver, BrowserCdpLauncher } = require('./drivers/cdp');
 const { normalizeToolCall, actionIdToShortcut } = require('./tool-call');
-const { resolveShortcut } = require('./action-router');
+const { resolveShortcutWithClassifier } = require('./action-router');
 const { loadRiskPolicy } = require('./risk-policy');
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -41,6 +41,8 @@ class ComputerEngine {
     this.ocr = options.ocr || new OcrDriver();
     this.memory = options.memory || new MemoryStore(path.join(dataDir, 'ui-memory.json'));
     this.fastAi = options.fastAi || new FastAiClient();
+    this.actionClassifier = options.actionClassifier || null;
+    this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
     this.vision = options.vision || new StructuredVisionClient();
     this.browserLauncher = options.browserLauncher || null;
     this.browserDriver = options.browserDriver || null;
@@ -53,6 +55,7 @@ class ComputerEngine {
       actions: 0, successes: 0, failures: 0, strategy: {},
       screenshots: 0, screenshotBytes: 0, ocrCalls: 0, ocrLatencyMs: 0,
       modelCalls: 0, modelInputTokens: 0, modelOutputTokens: 0,
+      classifierCalls: 0, classifierHits: 0, classifierLatencyMs: 0,
       toolCalls: 0, shortcutHits: 0, confirmationRequests: 0,
       startedAt: Date.now()
     };
@@ -361,10 +364,20 @@ class ComputerEngine {
   async fastAct(args = {}) {
     if (!args.window || !args.goal) throw new Error('window_and_goal_required');
     const localWindowKey = await this.getWindowKey(args.window);
-    const localShortcut = resolveShortcut(this.memory, localWindowKey, args.goal, args.shortcut_id);
+    const routed = await resolveShortcutWithClassifier(this.memory, localWindowKey, args.goal, {
+      explicitId: args.shortcut_id,
+      classifier: this.actionClassifier,
+      threshold: this.actionClassifierThreshold
+    });
+    if (routed.source.startsWith('classifier')) {
+      this.metrics.classifierCalls += 1;
+      this.metrics.classifierLatencyMs += Number(routed.latencyMs || 0);
+      if (routed.shortcut) this.metrics.classifierHits += 1;
+    }
+    const localShortcut = routed.shortcut;
     if (localShortcut) {
       const execution = await this.invokeGuarded({ type: 'shortcut', window: args.window, name: localShortcut.name, params: args.params || {} });
-      return { ok: execution.ok, source: 'local-shortcut', shortcut: localShortcut.name, execution };
+      return { ok: execution.ok, source: routed.source === 'classifier' ? 'local-classifier' : 'local-shortcut', shortcut: localShortcut.name, execution, ...(routed.confidence ? { confidence: routed.confidence } : {}) };
     }
     const snapshot = args.snapshot || await this.state({ window: args.window, includeUi: true, maxNodes: args.maxNodes || 30, includeTransitions: true }).then((state) => state.snapshot);
     const params = args.params && typeof args.params === 'object' ? args.params : {};

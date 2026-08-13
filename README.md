@@ -139,6 +139,8 @@ npm start
 
 支持 OpenAI-compatible chat completions、Responses、Anthropic Messages 和 Gemini function calling。provider 不会直接执行电脑动作，所有动作都经过本地窗口、权限和风险校验。
 
+本地 action-ID 路由支持注入可选分类器。确定性的名称、ID 和别名匹配始终优先；只有未命中时才调用分类器。分类器只能从当前窗口作用域已有 shortcut 中返回一个 ID，默认置信度阈值为 `0.85`，未知 ID 或低置信度结果会被拒绝并回退到快速 AI/常规观察。`computer.state.metrics` 会记录 `classifierCalls`、`classifierHits` 和 `classifierLatencyMs`。
+
 ## Benchmark
 
 ```powershell
@@ -175,6 +177,6 @@ npm run benchmark:suite -- docs/benchmarks/edge.json --execute --output .data/ed
 
 ## DeepSeek Harness
 
-DeepSeek Harness 可通过官方 `@deepseek-ai/dsh-mcp-client` 直接连接本服务。Harness 当前要求 Node.js `^22.19.0` 或 `>=24`。先为目标 profile 安装 bridge 依赖，再将 [adapters/deepseek-harness/cordis.yml](D:/projects/computer-use-plus/adapters/deepseek-harness/cordis.yml) 的条目合并进 Harness composition；该新增条目不能直接作为 `--patch` 使用。项目不位于默认位置时设置 `COMPUTER_USE_PLUS_ROOT`。
+DeepSeek Harness 可通过官方 `@deepseek-ai/dsh-mcp-client` 直接连接本服务。Harness 当前要求 Node.js `^22.19.0` 或 `>=24`。先为目标 profile 安装 bridge 依赖，再把 [adapters/deepseek-harness/cordis.yml](D:/projects/computer-use-plus/adapters/deepseek-harness/cordis.yml) 作为 `--patch` 传入；它是可直接加载的 `insert` overlay。项目不位于默认位置时设置 `COMPUTER_USE_PLUS_ROOT`。
 
 适配档只公开六个高层、下划线命名的工具，避免 Harness 对点号工具名进行哈希化：`shortcut_run`、`computer_invoke`、`computer_state`、`computer_inspect`、`computer_verify`、`computer_cancel`。完整配置和调用原则见 [adapter README](D:/projects/computer-use-plus/adapters/deepseek-harness/README.md)。
