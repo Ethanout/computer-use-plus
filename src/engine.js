@@ -82,7 +82,11 @@ class ComputerEngine {
         fastAi: this.fastAi.status(),
       },
       memory: this.memory.stats(),
-      execution: this.execution.status(),
+      execution: {
+        ...this.execution.status(),
+        mode: this.executionMode,
+        backgroundOnly: this.executionMode === 'backgroundOnly'
+      },
       metrics: { ...this.metrics, uptimeMs: Date.now() - this.metrics.startedAt }
     };
     if (args.includeUi) response.snapshot = await this.buildSnapshot(windows, focused, args);

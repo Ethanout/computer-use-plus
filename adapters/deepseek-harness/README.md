@@ -44,6 +44,10 @@ The verification command uses the profile's normal model credentials solely to
 ask the Host to list tools. It does not configure or read a computer-use-plus
 AI key.
 
+A second real Host turn also called `computer_state` through the bridge and
+confirmed `execution.backgroundOnly: true`, proving tool execution and result
+projection in addition to discovery.
+
 If the project is elsewhere, set:
 
 ```powershell
