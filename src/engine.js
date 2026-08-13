@@ -13,7 +13,7 @@ const { FastAiClient } = require('./fast-ai');
 const { StructuredVisionClient } = require('./vision');
 const { CdpDriver, BrowserCdpLauncher } = require('./drivers/cdp');
 const { normalizeToolCall, actionIdToShortcut } = require('./tool-call');
-const { resolveShortcutWithClassifier } = require('./action-router');
+const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('./action-router');
 const { loadRiskPolicy } = require('./risk-policy');
 
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -41,7 +41,7 @@ class ComputerEngine {
     this.ocr = options.ocr || new OcrDriver();
     this.memory = options.memory || new MemoryStore(path.join(dataDir, 'ui-memory.json'));
     this.fastAi = options.fastAi || new FastAiClient();
-    this.actionClassifier = options.actionClassifier || null;
+    this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
     this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
     this.vision = options.vision || new StructuredVisionClient();
     this.browserLauncher = options.browserLauncher || null;

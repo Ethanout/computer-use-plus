@@ -302,6 +302,21 @@ test('organize AI returns a proposal without applying it unless applyAi is expli
   assert.equal(memory.listWorkflows('mock|mock').length, 0);
 });
 
+test('fastAct uses the default local action-ID classifier before fast AI', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-local-action-id-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  memory.recordWorkflow('切换资源包', 'mock|mock', [{ kbseq: ['escape'] }], { aliases: ['换材质'] });
+  let fastAiCalls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory,
+    fastAi: { status: () => ({ configured: true }), async plan() { fastAiCalls += 1; return { actions: [] }; } }
+  });
+  const output = await engine.fastAct({ window: 'mock-1', goal: '帮我换一个材质包' });
+  assert.equal(output.source, 'local-classifier');
+  assert.equal(fastAiCalls, 0);
+  assert.equal(engine.metrics.classifierHits, 1);
+});
+
 test('maintenance automatically creates a review-only organization proposal when due', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-auto-organize-'));
   const memory = new MemoryStore(path.join(dir, 'memory.json'));

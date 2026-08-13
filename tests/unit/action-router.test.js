@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { resolveShortcutWithClassifier } = require('../../src/action-router');
+const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('../../src/action-router');
 
 function memory() {
   const workflows = [
@@ -45,4 +45,15 @@ test('action classifier can select only a known shortcut above threshold', async
   });
   assert.equal(unknown.shortcut, null);
   assert.equal(unknown.source, 'classifier-unknown-id');
+});
+
+test('local action-ID classifier selects a close alias and rejects unrelated intent', async () => {
+  const classifier = new LocalActionIdClassifier();
+  const hit = await resolveShortcutWithClassifier(memory(), 'minecraft', '帮我换一个材质包', { classifier, threshold: 0.85 });
+  assert.equal(hit.shortcut.id, 'switch_pack');
+  assert.equal(hit.source, 'classifier');
+
+  const rejected = await resolveShortcutWithClassifier(memory(), 'minecraft', '导出本周销售数据', { classifier, threshold: 0.85 });
+  assert.equal(rejected.shortcut, null);
+  assert.equal(rejected.source, 'classifier-rejected');
 });
