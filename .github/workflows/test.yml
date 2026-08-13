@@ -20,7 +20,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: npm test
+      - name: Install FFmpeg for local-media tests
+        shell: pwsh
+        run: |
+          choco install ffmpeg -y --no-progress
+          Add-Content $env:GITHUB_PATH 'C:\ProgramData\chocolatey\bin'
+      - run: npm run test:ci
       - name: Smoke-test Harness tool profile
         shell: pwsh
         run: |

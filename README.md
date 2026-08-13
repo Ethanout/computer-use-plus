@@ -94,6 +94,8 @@ $env:COMPUTER_USE_PLUS_AI_MODEL='gpt-4o-mini'
 npm test
 ```
 
+`npm test` 包含专用执行桌面的真实 Windows 集成测试，适合有交互桌面的本机。GitHub-hosted Windows runner 不具备可捕获的隔离 desktop，因此 CI 运行 `npm run test:ci`：覆盖全部单元测试、FFmpeg 本地媒体流程、MCP stdio 协议和 Harness 工具档；专用桌面端到端验收仍在真实 Windows 桌面环境执行。
+
 无 Windows UIA 环境时可用模拟驱动验证协议和动作事务：
 
 ```powershell
