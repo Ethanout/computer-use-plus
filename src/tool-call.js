@@ -86,24 +86,56 @@ class ToolCallAccumulator {
 
   push(event) {
     const delta = event?.delta || event;
-    const index = Number(delta?.index ?? event?.index ?? 0);
-    const knownId = this.indexIds.get(index);
-    const id = delta?.id || event?.item_id || knownId || `index:${index}`;
-    this.indexIds.set(index, id);
-    const previous = this.calls.get(id) || { id: delta?.id || event?.item_id || null, name: '', arguments: '' };
     const fn = delta?.function || delta?.function_call || {};
+    const hasToolFields = Boolean(
+      delta?.id || event?.item_id || delta?.name || fn.name || event?.name || event?.content_block?.name ||
+      delta?.arguments !== undefined || delta?.partial_json !== undefined || fn.arguments !== undefined || event?.arguments_delta !== undefined
+    );
+    if (!hasToolFields) return null;
+    const index = Number(delta?.index ?? event?.index ?? 0);
+    const publicId = delta?.id || event?.item_id || null;
+    const key = publicId ? `id:${publicId}` : this.indexIds.get(index) || `index:${index}`;
+    this.indexIds.set(index, key);
+    const previous = this.calls.get(key) || { key, id: publicId, name: '', arguments: '' };
+    if (publicId) previous.id = publicId;
     previous.name += String(delta?.name || fn.name || event?.name || event?.content_block?.name || '');
     const fragment = delta?.arguments ?? delta?.partial_json ?? fn.arguments ?? event?.arguments_delta ?? (typeof event?.delta === 'string' ? event.delta : undefined);
     if (typeof fragment === 'string') previous.arguments += fragment;
-    this.calls.set(id, previous);
+    else if (fragment && typeof fragment === 'object') previous.arguments += JSON.stringify(fragment);
+    this.calls.set(key, previous);
     return previous;
   }
 
   complete(id = null) {
-    const value = id ? this.calls.get(id) : this.calls.values().next().value;
+    const key = id && this.calls.has(id) ? id : (id ? `id:${id}` : null);
+    const value = key ? this.calls.get(key) : this.calls.values().next().value;
     if (!value) throw new Error('tool_call_missing');
     return makeToolCall(value.name, value.arguments || '{}', value.id);
   }
+
+  tryComplete(id = null) {
+    try { return this.complete(id); } catch (_) { return null; }
+  }
+}
+
+function streamToolDeltas(event) {
+  const output = [];
+  for (const choice of event?.choices || []) {
+    for (const call of choice?.delta?.tool_calls || []) output.push({ ...call, index: call.index ?? choice.index });
+    if (choice?.delta?.function || choice?.delta?.function_call || choice?.delta?.id) output.push({ ...choice.delta, index: choice?.delta?.index ?? choice.index });
+  }
+  for (const candidate of event?.candidates || []) {
+    for (const part of candidate?.content?.parts || []) {
+      if (part?.functionCall?.name) output.push({ name: part.functionCall.name, arguments: part.functionCall.args || {}, index: candidate.index });
+    }
+  }
+  if (event?.content_block?.type === 'tool_use') output.push({ ...event.content_block, index: event.index });
+  if (event?.type === 'content_block_delta' && event?.delta?.partial_json !== undefined) output.push({ ...event.delta, index: event.index });
+  if (event?.item?.type === 'function_call') output.push({ id: event.item.call_id || event.item.id, name: event.item.name, arguments: event.item.arguments || '', index: event.output_index });
+  if (event?.type === 'response.function_call_arguments.delta') output.push({ id: event.item_id, arguments: event.delta, index: event.output_index });
+  if (event?.delta?.function || event?.delta?.function_call || event?.delta?.id || event?.delta?.partial_json !== undefined) output.push({ ...event.delta, index: event.index });
+  if (event?.function || event?.function_call || event?.id || event?.partial_json !== undefined) output.push(event);
+  return output;
 }
 
 function extractToolCall(payload) {
@@ -128,4 +160,4 @@ function actionIdToShortcut(actionId) {
   return value.startsWith('shortcut.') ? value.slice('shortcut.'.length) : value;
 }
 
-module.exports = { TOOL_NAMES, TOOL_DEFINITIONS, ToolCallAccumulator, normalizeToolCall, extractToolCall, makeToolCall, actionIdToShortcut };
+module.exports = { TOOL_NAMES, TOOL_DEFINITIONS, ToolCallAccumulator, streamToolDeltas, normalizeToolCall, extractToolCall, makeToolCall, actionIdToShortcut };

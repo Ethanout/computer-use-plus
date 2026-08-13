@@ -1,6 +1,6 @@
 'use strict';
 
-const { extractToolCall, ToolCallAccumulator, TOOL_DEFINITIONS } = require('./tool-call');
+const { extractToolCall, ToolCallAccumulator, streamToolDeltas, TOOL_DEFINITIONS } = require('./tool-call');
 
 class ToolCallProvider {
   constructor(options = {}) {
@@ -43,7 +43,7 @@ class ToolCallProvider {
     }
   }
 
-  async callStream({ system, user, tools = TOOL_DEFINITIONS, toolChoice = 'auto', onDelta = null }) {
+  async callStream({ system, user, tools = TOOL_DEFINITIONS, toolChoice = 'auto', onDelta = null, onToolCall = null }) {
     if (!this.configured) throw new Error('tool_call_provider_not_configured');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -53,12 +53,22 @@ class ToolCallProvider {
       const response = await this.fetch(request.endpoint, { method: 'POST', headers: request.headers, body: JSON.stringify(request.body), signal: controller.signal });
       if (!response.ok) throw new Error(`tool_call_http_${response.status}`);
       const accumulator = new ToolCallAccumulator();
+      const dispatched = new Set();
+      let dispatchTail = Promise.resolve();
       for await (const event of readEventStream(response)) {
-        const delta = event?.choices?.[0]?.delta || event?.delta || event;
-        accumulator.push(delta);
-        if (typeof onDelta === 'function') onDelta(delta);
+        if (typeof onDelta === 'function') onDelta(event);
+        for (const partial of streamToolDeltas(event)) {
+          const value = accumulator.push(partial);
+          if (!value || typeof onToolCall !== 'function') continue;
+          const call = accumulator.tryComplete(value.key);
+          if (call && !dispatched.has(call.id || call.name)) {
+            dispatched.add(call.id || call.name);
+            dispatchTail = dispatchTail.then(() => onToolCall(call));
+          }
+        }
       }
-      return accumulator.complete();
+      await dispatchTail;
+      return { ...accumulator.complete(), model: this.model };
     } catch (error) {
       if (error?.name === 'AbortError') throw new Error('tool_call_timeout');
       throw error;
@@ -88,13 +98,20 @@ async function* readEventStream(response) {
     }
     return;
   }
+  let buffer = '';
   for await (const chunk of response.body) {
-    const raw = Buffer.from(chunk).toString('utf8');
-    for (const line of raw.split(/\r?\n/)) {
+    buffer += Buffer.from(chunk).toString('utf8');
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
+    for (const line of lines) {
       const value = line.startsWith('data:') ? line.slice(5).trim() : line.trim();
       if (!value || value === '[DONE]') continue;
       try { yield JSON.parse(value); } catch (_) { /* ignore non-JSON stream comments */ }
     }
+  }
+  const value = buffer.startsWith('data:') ? buffer.slice(5).trim() : buffer.trim();
+  if (value && value !== '[DONE]') {
+    try { yield JSON.parse(value); } catch (_) { /* ignore incomplete trailing data */ }
   }
 }
 
@@ -118,7 +135,7 @@ function buildRequest(protocol, options) {
     body: { model, max_tokens: 300, system, messages: [{ role: 'user', content: JSON.stringify(user) }], tools: toAnthropicTools(tools) }
   };
   if (protocol === 'gemini') return {
-    endpoint: `${baseUrl}/models/${encodeURIComponent(model)}:generateContent`,
+    endpoint: `${baseUrl}/models/${encodeURIComponent(model)}:${options.stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`,
     headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
     body: {
       systemInstruction: { parts: [{ text: system }] },

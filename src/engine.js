@@ -381,6 +381,43 @@ class ComputerEngine {
     }
     const snapshot = args.snapshot || await this.state({ window: args.window, includeUi: true, maxNodes: args.maxNodes || 30, includeTransitions: true }).then((state) => state.snapshot);
     const params = args.params && typeof args.params === 'object' ? args.params : {};
+    if (args.stream === true && typeof this.fastAi.planToolCallStream === 'function') {
+      let earlyExecutionPromise = null;
+      const startedAt = Date.now();
+      let streamDispatchLatencyMs = null;
+      try {
+        const call = await this.fastAi.planToolCallStream({
+          goal: args.goal,
+          window: args.window,
+          snapshot,
+          params,
+          maxActions: args.maxActions || 20,
+          onToolCall: async (toolCall) => {
+            if (earlyExecutionPromise) return earlyExecutionPromise;
+            streamDispatchLatencyMs = Date.now() - startedAt;
+            earlyExecutionPromise = this.invokeToolCall(toolCall, { defaultWindow: args.window, params });
+            return earlyExecutionPromise;
+          }
+        });
+        this.recordModelUsage(call.usage);
+        if (earlyExecutionPromise) {
+          const earlyExecution = await earlyExecutionPromise;
+          return {
+            ok: earlyExecution.ok,
+            source: 'fast-ai-tool-call-stream',
+            model: call.model,
+            toolCall: { name: call.name },
+            execution: earlyExecution,
+            streamDispatchLatencyMs,
+            ...(call.usage ? { usage: call.usage } : {})
+          };
+        }
+        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params });
+        return { ok: execution.ok, source: 'fast-ai-tool-call-stream-fallback', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
+      } catch (error) {
+        if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
+      }
+    }
     if (typeof this.fastAi.planToolCall === 'function') {
       try {
         const call = await this.fastAi.planToolCall({ goal: args.goal, window: args.window, snapshot, params, maxActions: args.maxActions || 20 });

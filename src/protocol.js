@@ -153,7 +153,8 @@ const TOOLS = [
       properties: {
         window: { type: 'string' }, goal: { type: 'string' }, shortcut_id: { type: 'string', description: '可选的本地 shortcut/action ID，命中时绕过模型。' },
         params: { type: 'object', description: '高层时间参数使用秒并允许小数；只有 kbops.at 使用毫秒。', additionalProperties: true },
-        maxActions: { type: 'integer', minimum: 1, maximum: 100 }, maxNodes: { type: 'integer', minimum: 1, maximum: 50 }
+        maxActions: { type: 'integer', minimum: 1, maximum: 100 }, maxNodes: { type: 'integer', minimum: 1, maximum: 50 },
+        stream: { type: 'boolean', description: '明确设为 true 时，在首个完整 native tool call 到达后立即执行；仍经过现有权限和高风险确认。' }
       }, additionalProperties: false
     }
   },
