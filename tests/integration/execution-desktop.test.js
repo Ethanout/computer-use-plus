@@ -69,6 +69,11 @@ test('dedicated desktop isolates windows and executes UIA actions', { skip: proc
     assert.equal(screenshot.count, 1);
     assert.ok(screenshot.screens[0].imageBase64.length > 1000);
     assert.equal(fs.readdirSync(dataDir).some((name) => name.startsWith('capture-') && name.endsWith('.png')), false);
+    const coordinateScreenshot = await engine.screenshot({ window: window[0], mode: 'image', coordinateGrid: true, tickPixels: 100 });
+    assert.equal(coordinateScreenshot.screens[0].coordinates.origin, 'window-top-left');
+    assert.equal(coordinateScreenshot.screens[0].coordinates.grid, true);
+    assert.equal(coordinateScreenshot.screens[0].coordinates.tickPixels, 100);
+    assert.ok(coordinateScreenshot.screens[0].imageBase64.length > 1000);
 
     const ocrClick = await engine.clickWithOcr(window[0], { text: 'Button' });
     assert.equal(ocrClick.ok, true);

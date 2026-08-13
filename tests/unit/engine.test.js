@@ -95,6 +95,33 @@ test('state can return one action-ready UI snapshot with reusable refs', async (
   assert.equal(acted.ok, true);
 });
 
+test('metadata and OCR captures count actual temporary image bytes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-capture-metrics-'));
+  const driver = new MockDriver();
+  driver.windows[0].bounds = { x: 10, y: 20, width: 100, height: 80 };
+  let captureOptions;
+  driver.capture = async (_window, options) => {
+    captureOptions = options;
+    const imagePath = path.join(dir, `capture-${Date.now()}-${Math.random()}.png`);
+    fs.writeFileSync(imagePath, Buffer.alloc(321, 1));
+    return { path: imagePath, bounds: driver.windows[0].bounds, scale: 1 };
+  };
+  const ocr = { available: true, inspectImage: async () => [{ text: '保存', role: 'text', bounds: { x: 10, y: 20, width: 20, height: 10 } }], close() {} };
+  const engine = new ComputerEngine({ driver, dataDir: dir, ocr, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  engine.isolated = true;
+
+  await engine.screenshot({ window: 'mock-1', mode: 'metadata' });
+  assert.equal(engine.metrics.screenshots, 1);
+  assert.equal(engine.metrics.screenshotBytes, 321);
+  await engine.inspect({ window: 'mock-1', mode: 'ocr', query: { text: '保存' } });
+  assert.equal(engine.metrics.screenshots, 2);
+  assert.equal(engine.metrics.screenshotBytes, 642);
+  assert.equal(engine.metrics.ocrCalls, 1);
+  const image = await engine.screenshot({ window: 'mock-1', mode: 'image', coordinateGrid: true, tickPixels: 125 });
+  assert.deepEqual(captureOptions, { coordinateGrid: true, tickPixels: 125 });
+  assert.deepEqual(image.screens[0].coordinates, { origin: 'window-top-left', units: 'physical-pixels', screenOrigin: { x: 10, y: 20 }, grid: true, tickPixels: 125 });
+});
+
 test('isolated UIA-only batches do not request foreground focus', async () => {
   const driver = new MockDriver();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-isolated-focus-'));

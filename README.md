@@ -40,7 +40,7 @@ npm start
 - `computer.state`：窗口、焦点、能力、记忆统计、运行指标和专用执行桌面状态；`includeUi: true` 时返回一次可直接操作的紧凑 UI 快照、短期 `ref` 和最近状态转换。
 - `computer.inspect`：按窗口和文本/角色查询 UIA 元素；UIA 找不到目标时可对隔离窗口执行 `PrintWindow` 截图并交给本地 OCR，截图只在 `.data` 中短暂存在。
 - `computer.wait`：按窗口标题/进程/类名或元素文本/角色等待出现或消失，减少跨应用流程中的固定延迟。
-- `computer.screenshot`：默认只返回最多 20 个窗口的边界元数据；传 `mode: "image"` 才返回短期 base64 图像。
+- `computer.screenshot`：默认只返回最多 20 个窗口的边界元数据；传 `mode: "image"` 才返回短期 base64 图像。`coordinateGrid: true` 会在图片内边缘绘制窗口相对坐标标尺，并返回屏幕原点与刻度，便于精确定位。
 - `computer.act`：批量执行 `click`、`setValue`、`hotkey`、`keys` 和 `wait`。
 - `computer.fast`：可选的低延迟 AI 只规划并执行当前动作，不写长期记忆。
 - `computer.shortcut`：由主 AI 显式保存、列出、运行或整理命名动作链；支持单窗口和独立的跨窗口作用域。
@@ -49,7 +49,7 @@ npm start
 
 服务端在每次 `computer.act` 后自动更新底层 UI 定位记忆，模型不能直接改写定位器和状态转换统计；主 AI 可以通过 `computer.shortcut` 显式管理可复用动作链。
 后台维护达到候选、变更量或空闲阈值且配置了整理 AI 时，会自动生成待审 proposal；它不会自动 merge、rename、archive 或删除 shortcut。待审数量通过 `computer.state.memory.organization.pendingProposals` 可见，主 AI 或用户仍需显式应用。
-`computer.state.metrics` 只负责累计动作策略、OCR 次数与耗时、截图次数和实际图像字节数，用于成本/延迟评估；它不是动作链本体。供模型一次规划完整链路的数据来自 `computer.state.snapshot`、最近 `transitions` 和已保存的 `computer.shortcut`。
+`computer.state.metrics` 只负责累计动作策略、OCR 次数与耗时、截图次数和实际图像字节数，用于成本/延迟评估；直接截图和 OCR/结构化视觉产生的内部临时 PNG 都按实际文件字节计量。它不是动作链本体。供模型一次规划完整链路的数据来自 `computer.state.snapshot`、最近 `transitions` 和已保存的 `computer.shortcut`。
 缓存定位器失效时，服务会自动降权并先用原始 UIA 查询重新发现，只有 UIA 失败才进入 OCR，OCR 无法消歧且视觉 provider 已配置时才进入结构化视觉；代理启动时还会清理过期临时截图、旧日志和旧版本代理二进制。
 
 ## 一次规划与 Shortcut

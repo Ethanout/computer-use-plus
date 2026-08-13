@@ -254,6 +254,7 @@ class ComputerEngine {
     try {
       const root = path.resolve(this.execution.dataDir || '.data');
       if (!imagePath.startsWith(`${root}${path.sep}`)) throw new Error('execution_capture_path_invalid');
+      this.recordCapture(imagePath);
       const layout = await this.vision.inspectImage(imagePath, capture.bounds || window.bounds, { query });
       return layout.windows.flatMap((item) => item.nodes || [])
         .filter((node) => !query.text || String(node.text || '').toLocaleLowerCase().includes(String(query.text).toLocaleLowerCase()))
@@ -310,22 +311,28 @@ class ComputerEngine {
       : windows.filter((item) => item.bounds && item.title).slice(0, 20);
     if (!selected.length) throw new Error('window_not_found');
     const includeImage = args.mode === 'image';
+    const coordinateGrid = includeImage && args.coordinateGrid === true;
+    const tickPixels = Math.max(50, Math.min(Number(args.tickPixels) || 100, 500));
     const screens = [];
     for (const window of selected) {
-      const capture = await this.driver.capture(window.id);
+      const capture = await this.driver.capture(window.id, { coordinateGrid, tickPixels });
       const item = { window: String(window.id), title: window.title || '', bounds: capture.bounds || window.bounds };
+      item.coordinates = {
+        origin: 'window-top-left', units: 'physical-pixels',
+        screenOrigin: { x: item.bounds?.x || 0, y: item.bounds?.y || 0 },
+        ...(coordinateGrid ? { grid: true, tickPixels } : { grid: false })
+      };
       const imagePath = path.resolve(capture.path);
       const root = path.resolve(this.execution.dataDir || '.data');
       try {
         if (!imagePath.startsWith(`${root}${path.sep}`)) throw new Error('execution_capture_path_invalid');
+        this.recordCapture(imagePath);
         if (includeImage) item.imageBase64 = fs.readFileSync(imagePath).toString('base64');
         else item.capture = 'available_on_demand';
       } finally {
         try { fs.unlinkSync(imagePath); } catch (_) { }
       }
       screens.push(item);
-      this.metrics.screenshots += 1;
-      this.metrics.screenshotBytes += includeImage ? Buffer.byteLength(item.imageBase64, 'base64') : 0;
     }
     return { mode: includeImage ? 'image' : 'metadata', count: screens.length, screens };
   }
@@ -972,6 +979,7 @@ class ComputerEngine {
         const imagePath = path.resolve(capture.path);
         try {
           if (!imagePath.startsWith(`${root}${path.sep}`)) throw new Error('execution_capture_path_invalid');
+          this.recordCapture(imagePath);
           return await this.ocr.inspectImage(imagePath, { ...(capture.bounds || window.bounds), scale: capture.scale || 1 }, query);
         } finally {
           try { fs.unlinkSync(imagePath); } catch (_) { }
@@ -983,6 +991,11 @@ class ComputerEngine {
       }
     }
     return this.ocr.inspect(window.bounds, query);
+  }
+
+  recordCapture(imagePath) {
+    this.metrics.screenshots += 1;
+    try { this.metrics.screenshotBytes += fs.statSync(imagePath).size; } catch (_) { }
   }
 
   async retryTargetLookup(operation) {
