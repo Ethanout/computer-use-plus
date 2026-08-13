@@ -181,6 +181,7 @@ npm run benchmark:suite -- docs/benchmarks/edge.json --execute --output .data/ed
 - `COMPUTER_USE_PLUS_BROWSER_EXECUTABLE`
 - `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`
 - `COMPUTER_USE_PLUS_WECHAT_COMMAND`
+- `COMPUTER_USE_PLUS_QQ_COMMAND`
 
 ## 验证与风险策略
 

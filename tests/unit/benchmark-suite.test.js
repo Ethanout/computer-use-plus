@@ -66,8 +66,8 @@ test('benchmark suite interpolates only declared environment references at execu
   assert.equal(interpolateEnvironment('${UNKNOWN}', {}).includes('UNKNOWN'), true);
 });
 
-test('Minecraft and WeChat suites launch and inspect explicit isolated instances', () => {
-  for (const name of ['minecraft', 'wechat']) {
+test('Minecraft, WeChat and QQ suites launch and inspect explicit isolated instances', () => {
+  for (const name of ['minecraft', 'wechat', 'qq']) {
     const value = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'docs', 'benchmarks', `${name}.json`), 'utf8'));
     const tools = value.tasks[0].steps.map((step) => step.tool);
     assert.deepEqual(tools, ['computer.execution', 'computer.execution', 'computer.wait', 'computer.state', 'computer.execution']);
