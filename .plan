@@ -49,7 +49,7 @@
 
 1. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
 2. Edge 独立实例 benchmark 已完成，并支持 setup/teardown 与 warm-path 独立计时。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
-3. 依据真实自绘界面结果，为微信、QQ 等应用增加独立实例启动说明和专用回归用例；不承诺操作用户当前前台已登录实例。
+3. 微信、QQ 与 Minecraft 均提供独立实例启动说明和专用 smoke suite；待用户提供独立实例后采集真实自绘界面结果，不承诺操作用户当前前台已登录实例。
 4. 用真实 provider benchmark 流式 tool-call 早调度收益；默认本地 action-ID 分类器和可插拔接口已完成，后续用真实任务 benchmark 调整阈值，并与小型本地分类模型比较。
 5. 本机真实 runtime benchmark 已达到 shortcut P95 小于 100ms、UIA/CDP P95 小于 300ms、本地 OCR P95 小于 800ms；冷启动数据独立统计。继续在其他硬件和独立 Minecraft/微信实例上采样，防止把单机 fixture 数据推广为所有应用保证。
    - Provider benchmark 工具已完成，可比较标准/流式 native tool call 的成功率、P50/P95、首调用延迟、token 和费用；真实排名等待用户通过环境变量配置候选 provider，不读取受保护 key 文件。

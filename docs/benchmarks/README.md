@@ -10,7 +10,7 @@ node scripts/run-benchmark-suite.js docs/benchmarks/edge.json --execute
 
 该测试使用项目 `.data` 下独立 Edge profile 和 CDP，不使用用户现有 profile。
 
-## Minecraft 与微信
+## Minecraft、微信与 QQ
 
 这两个应用的安装形态、登录状态和窗口进程名不稳定，因此必须由测试者显式提供独立实例的启动命令和预期窗口进程名。不要指向正在使用的实例。
 
@@ -22,6 +22,10 @@ node scripts/run-benchmark-suite.js docs/benchmarks/minecraft.json --execute
 $env:COMPUTER_USE_PLUS_WECHAT_COMMAND = '"D:\\isolated\\WeChat\\WeChat.exe"'
 $env:COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS = 'WeChat'
 node scripts/run-benchmark-suite.js docs/benchmarks/wechat.json --execute
+
+$env:COMPUTER_USE_PLUS_QQ_COMMAND = '"D:\\isolated\\QQ\\QQ.exe"'
+$env:COMPUTER_USE_PLUS_QQ_WINDOW_PROCESS = 'QQ'
+node scripts/run-benchmark-suite.js docs/benchmarks/qq.json --execute
 ```
 
 一个成功运行会依次创建专用桌面、通过 Job Object 启动实例、等待目标窗口、读取一次紧凑 UI 快照，并对执行桌面进行诊断。完成后 runner 会销毁桌面并回收启动的进程树。
