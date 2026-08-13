@@ -32,7 +32,7 @@ node scripts/run-benchmark-suite.js docs/benchmarks/qq.json --execute
 
 suite 可选 `setup` 和 `teardown`。`setup` 在计时任务前只运行一次，`teardown` 总会在任务结束后运行；两者不会混入每个任务的 P50/P95。`edge.json` 用此结构将浏览器冷启动与 10 次稳态 CDP 读取分开。2026-08-14 在该机器的专用执行桌面实测稳态 list + inspect：10/10 成功，P50 4 ms、P95 18 ms、0 token、0 截图、0 OCR。
 
-结果样本会用任务前后的引擎指标差值记录实际 `screenshots`、`screenshotBytes`、`ocrCalls`、`ocrLatencyMs`、模型 token、classifier、shortcut、动作数和动作路由。直接调用 CDP 管理接口的任务以任务级 `strategy: "cdp"` 统计，不会虚构为动作路由计数。
+结果样本会用任务前后的引擎指标差值记录实际 `screenshots`、`screenshotBytes`、`ocrCalls`、`ocrLatencyMs`、模型 token、classifier、shortcut、动作数和动作路由。无论 capture 是直接截图、OCR 还是结构化视觉的内部临时 PNG，均会计入真实字节数；直接调用 CDP 管理接口的任务以任务级 `strategy: "cdp"` 统计，不会虚构为动作路由计数。
 
 Windows 本地路由的可重复性能验收使用自建 WinForms fixture，不读取或操作用户窗口：
 

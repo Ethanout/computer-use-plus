@@ -184,7 +184,7 @@ namespace ComputerUsePlus {
         if (operation == "shutdown") { stop = true; return Ok(); }
         if (operation == "launch") return LaunchProcess(StringValue(request, "commandLine"), StringValue(request, "workingDirectory"));
         if (operation == "diagnose") return Diagnose();
-        if (operation == "capture") return CaptureWindow(StringValue(request, "windowId"));
+        if (operation == "capture") return CaptureWindow(StringValue(request, "windowId"), BoolValue(request, "coordinateGrid"), IntValue(request, "tickPixels", 100));
         if (operation != "driver") return Error("unsupported_agent_operation");
         var parameters = DictionaryValue(request, "params");
         switch (StringValue(request, "driverOperation")) {
@@ -345,7 +345,7 @@ namespace ComputerUsePlus {
       return Ok(new Dictionary<string, object> { { "strategy", "win32.mousemessage" } });
     }
 
-    private static Dictionary<string, object> CaptureWindow(string windowId) {
+    private static Dictionary<string, object> CaptureWindow(string windowId, bool coordinateGrid, int tickPixels) {
       IntPtr window = new IntPtr(Int64.Parse(windowId));
       ValidateExecutionWindow(window);
       RECT rect;
@@ -363,6 +363,7 @@ namespace ComputerUsePlus {
         try { rendered = PrintWindow(window, dc, 2); }
         finally { graphics.ReleaseHdc(dc); }
         if (!rendered) return Error("print_window_failed");
+        if (coordinateGrid) DrawCoordinateGrid(graphics, width, height, Math.Max(50, Math.Min(tickPixels, 500)));
         bitmap.Save(imagePath, ImageFormat.Png);
       }
       return Ok(new Dictionary<string, object> {
@@ -370,6 +371,25 @@ namespace ComputerUsePlus {
         { "scale", (GetDpiForSystem() == 0 ? 96.0 : GetDpiForSystem()) / 96.0 },
         { "bounds", new Dictionary<string, object> { { "x", rect.left }, { "y", rect.top }, { "width", width }, { "height", height } } }
       });
+    }
+
+    private static void DrawCoordinateGrid(Graphics graphics, int width, int height, int tick) {
+      using (var pen = new Pen(Color.FromArgb(210, 255, 64, 64), 1))
+      using (var fill = new SolidBrush(Color.FromArgb(220, 20, 20, 20)))
+      using (var text = new SolidBrush(Color.White))
+      using (var font = new Font("Segoe UI", 8, FontStyle.Regular, GraphicsUnit.Pixel)) {
+        graphics.FillRectangle(fill, 0, 0, width, Math.Min(18, height));
+        graphics.FillRectangle(fill, 0, 0, Math.Min(34, width), height);
+        for (int x = 0; x < width; x += tick) {
+          graphics.DrawLine(pen, x, 0, x, Math.Min(8, height));
+          if (x > 0) graphics.DrawString(x.ToString(), font, text, x + 2, 8);
+        }
+        for (int y = 0; y < height; y += tick) {
+          graphics.DrawLine(pen, 0, y, Math.Min(8, width), y);
+          if (y > 0) graphics.DrawString(y.ToString(), font, text, 9, y + 2);
+        }
+        graphics.DrawString("0,0", font, text, 9, 2);
+      }
     }
 
     private static Dictionary<string, object> Focus(string windowId) {

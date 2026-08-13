@@ -70,7 +70,9 @@ const TOOLS = [
       type: 'object',
       properties: {
         window: { type: 'string', description: '可选窗口句柄；省略时返回最多 20 个窗口。' },
-        mode: { type: 'string', enum: ['metadata', 'image'], description: 'image 才返回短期 base64 截图。' }
+        mode: { type: 'string', enum: ['metadata', 'image'], description: 'image 才返回短期 base64 截图。' },
+        coordinateGrid: { type: 'boolean', description: '仅 image 模式可选；在图像上边缘和左边缘绘制窗口相对坐标标尺。' },
+        tickPixels: { type: 'integer', minimum: 50, maximum: 500, description: '坐标标尺刻度间距，默认 100 像素。' }
       },
       additionalProperties: false
     }

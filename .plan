@@ -37,13 +37,14 @@
 
 ## 当前验证证据
 
-- `npm test`：87 项自动测试通过；`npm run test:ci`：84 项通过。
+- `npm test`：89 项自动测试通过；`npm run test:ci`：86 项通过。
 - 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
 - Edge 独立 profile / CDP 真实 smoke：2026-08-14 以 `data:` 页面在专用执行桌面执行；稳态 list + inspect 10 次均成功，P50 4 ms、P95 18 ms、0 截图、0 OCR、0 token。浏览器 setup/冷启动与任务样本分离统计，不将其冒充为单次 CDP 延迟。
 - Windows runtime fixture：2026-08-14 在专用执行桌面实测 UIA inspect 20/20 成功、P50 15.67 ms、P95 17.23 ms；已命中 shortcut 20/20 成功、P50 54.95 ms、P95 67.88 ms；预热 OCR 5/5 成功、P50 423.16 ms、P95 441.16 ms。三条路径均 0 模型 token；shortcut 用 UIA/Win32 动作成功结果作即时验证，完整状态树仅用于学习、恢复和非 shortcut 动作。
+- 截图成本统计覆盖直接截图与 OCR/结构化视觉的内部临时 capture，使用实际 PNG 文件字节而非 base64 或估算值。`computer.screenshot(mode: "image", coordinateGrid: true)` 可生成图内窗口相对坐标标尺，返回 screen origin 和 tick 间隔；该标尺不进入 OCR/视觉原图，避免干扰识别。
 - Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
 - Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具，并真实调用 `computer_state` 得到 `execution.backgroundOnly: true`。`scripts/verify-deepseek-harness.js` 可重复执行 discovery 验收。
-- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 80 项 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录包含 npm lockfile。旧 workflow 因远端提交缺少 lockfile 导致 setup-node 缓存初始化失败，当前 workflow 不依赖 npm 缓存，发布后再以远端 Actions 结果验收。
+- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；仓库根目录包含 npm lockfile。当前本地 CI 套件为 86 项，发布后以远端 Actions 的同一提交结果验收。
 
 ## 下一阶段
 

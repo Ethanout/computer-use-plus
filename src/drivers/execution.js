@@ -215,9 +215,13 @@ class ExecutionDesktopDriver {
   sendKeys(windowId, keys) { return this.call('sendKeys', { WindowId: String(windowId), KeysJson: keys }); }
   focus(windowId) { return this.call('focus', { WindowId: String(windowId) }); }
   clickAt(windowId, bounds) { return this.call('clickAt', { WindowId: String(windowId), BoundsJson: bounds }); }
-  async capture(windowId) {
+  async capture(windowId, options = {}) {
     await this.manager.ensureReady();
-    const response = await this.manager.request({ operation: 'capture', windowId: String(windowId) }, 10000);
+    const response = await this.manager.request({
+      operation: 'capture', windowId: String(windowId),
+      coordinateGrid: options.coordinateGrid === true,
+      tickPixels: Math.max(50, Math.min(Number(options.tickPixels) || 100, 500))
+    }, 10000);
     if (!response?.ok) throw new Error(response?.error || 'execution_capture_failed');
     return response;
   }

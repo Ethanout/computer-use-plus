@@ -12,3 +12,15 @@ test('MCP surface stays intentionally small', () => {
     'computer.act', 'computer.fast', 'computer.shortcut', 'computer.execution', 'computer.browser'
   ]);
 });
+
+test('screenshot coordinate grid schema stays bounded', () => {
+  const screenshot = TOOLS.find((tool) => tool.name === 'computer.screenshot');
+  const properties = screenshot.inputSchema.properties;
+  assert.equal(properties.coordinateGrid.type, 'boolean');
+  assert.deepEqual(properties.tickPixels, {
+    type: 'integer',
+    minimum: 50,
+    maximum: 500,
+    description: '坐标标尺刻度间距，默认 100 像素。'
+  });
+});
