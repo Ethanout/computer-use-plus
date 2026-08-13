@@ -23,6 +23,14 @@ class BenchmarkRecorder {
       classifierCalls: finite(sample.classifierCalls),
       classifierHits: finite(sample.classifierHits),
       classifierLatencyMs: finite(sample.classifierLatencyMs),
+      ocrCalls: finite(sample.ocrCalls),
+      ocrLatencyMs: finite(sample.ocrLatencyMs),
+      modelCalls: finite(sample.modelCalls),
+      toolCalls: finite(sample.toolCalls),
+      shortcutHits: finite(sample.shortcutHits),
+      actions: finite(sample.actions),
+      engineFailures: finite(sample.engineFailures),
+      strategyCounts: normalizeCounts(sample.strategyCounts),
       failureReason: sample.success === true ? null : String(sample.failureReason || 'unknown').slice(0, 200)
     };
     this.samples.push(normalized);
@@ -44,9 +52,14 @@ class BenchmarkRecorder {
         mcpRoundTrips: sum(this.samples, 'mcpRoundTrips'), screenshots: sum(this.samples, 'screenshots'),
         screenshotBytes: sum(this.samples, 'screenshotBytes'), estimatedCostUsd: sum(this.samples, 'estimatedCostUsd'),
         recoveryCount: sum(this.samples, 'recoveryCount'), classifierCalls: sum(this.samples, 'classifierCalls'),
-        classifierHits: sum(this.samples, 'classifierHits'), classifierLatencyMs: sum(this.samples, 'classifierLatencyMs')
+        classifierHits: sum(this.samples, 'classifierHits'), classifierLatencyMs: sum(this.samples, 'classifierLatencyMs'),
+        ocrCalls: sum(this.samples, 'ocrCalls'), ocrLatencyMs: sum(this.samples, 'ocrLatencyMs'),
+        modelCalls: sum(this.samples, 'modelCalls'), toolCalls: sum(this.samples, 'toolCalls'),
+        shortcutHits: sum(this.samples, 'shortcutHits'), actions: sum(this.samples, 'actions'),
+        engineFailures: sum(this.samples, 'engineFailures')
       },
       classifier: classifierSummary(this.samples),
+      routes: mergeCounts(this.samples.map((item) => item.strategyCounts)),
       byStrategy: group(this.samples, 'strategy'),
       byApplication: group(this.samples, 'application')
     };
@@ -55,6 +68,12 @@ class BenchmarkRecorder {
 
 function finite(value) { const number = Number(value || 0); return Number.isFinite(number) && number >= 0 ? number : 0; }
 function sum(items, key) { return items.reduce((total, item) => total + finite(item[key]), 0); }
+function normalizeCounts(value) { return Object.fromEntries(Object.entries(value || {}).map(([key, count]) => [String(key), finite(count)]).filter(([, count]) => count > 0)); }
+function mergeCounts(values) {
+  const output = {};
+  for (const value of values) for (const [key, count] of Object.entries(value || {})) output[key] = finite(output[key]) + finite(count);
+  return output;
+}
 function classifierSummary(items) {
   const calls = sum(items, 'classifierCalls');
   return { hitRate: calls ? sum(items, 'classifierHits') / calls : 0, averageLatencyMs: calls ? sum(items, 'classifierLatencyMs') / calls : 0 };

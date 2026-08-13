@@ -26,4 +26,6 @@ node scripts/run-benchmark-suite.js docs/benchmarks/wechat.json --execute
 
 一个成功运行会依次创建专用桌面、通过 Job Object 启动实例、等待目标窗口、读取一次紧凑 UI 快照，并对执行桌面进行诊断。完成后 runner 会销毁桌面并回收启动的进程树。
 
+结果样本会用任务前后的引擎指标差值记录实际 `screenshots`、`screenshotBytes`、`ocrCalls`、`ocrLatencyMs`、模型 token、classifier、shortcut、动作数和动作路由。直接调用 CDP 管理接口的任务以任务级 `strategy: "cdp"` 统计，不会虚构为动作路由计数。
+
 常见 UWP、商店版或启动器场景可能需要把命令包装为实际可执行的启动器命令；只要命令在专用桌面中能创建目标窗口即可。窗口进程名不含 `.exe`，大小写不敏感。
