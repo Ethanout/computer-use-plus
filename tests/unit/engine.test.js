@@ -8,6 +8,7 @@ const path = require('node:path');
 const { ComputerEngine, summarizeOrganizationCandidates } = require('../../src/engine');
 const { MockDriver } = require('../../src/drivers/mock');
 const { MemoryStore } = require('../../src/memory');
+const { ProviderConfigStore } = require('../../src/provider-config');
 
 test('act executes a compact action batch and stores a locator', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-'));
@@ -416,4 +417,30 @@ test('organization AI receives redacted action shapes instead of values or coord
   assert.doesNotMatch(json, /private text|Submit|123|456/);
   assert.deepEqual(summary[0].left.actionShape[0], { type: 'setValue', role: 'edit' });
   assert.deepEqual(summary[0].right.actionShape[0], { type: 'click', role: 'button' });
+});
+
+test('provider revision reloads the managed Fast AI client', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-provider-reload-'));
+  const providerConfig = new ProviderConfigStore(path.join(dataDir, 'providers.json'), { env: { TEST_PROVIDER_KEY: 'secret' } });
+  providerConfig.upsert({ id: 'fast', baseUrl: 'https://api.example.test/v1', model: 'one', protocol: 'openai', apiKey: { type: 'env', name: 'TEST_PROVIDER_KEY' } }, 0);
+  providerConfig.activate('fast', 1);
+  const engine = new ComputerEngine({ dataDir, driver: new MockDriver(), providerConfig, providerReloadIntervalMs: 0 });
+  try {
+    assert.equal(engine.fastAi.model, 'one');
+    providerConfig.upsert({ id: 'fast', baseUrl: 'https://api.example.test/v1', model: 'two', protocol: 'openai', apiKey: { type: 'env', name: 'TEST_PROVIDER_KEY' } }, 2);
+    const reloaded = engine.reloadProvider();
+    assert.equal(reloaded.changed, true);
+    assert.equal(engine.fastAi.model, 'two');
+    assert.equal(engine.metrics.providerReloads, 1);
+  } finally { engine.close(); }
+});
+
+test('model usage records tokens and estimated provider cost without exposing key material', () => {
+  const engine = new ComputerEngine({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'cup-provider-cost-')), driver: new MockDriver(), fastAi: { status: () => ({ configured: true }) }, providerReloadIntervalMs: 0 });
+  try {
+    const usage = engine.recordModelUsage({ prompt_tokens: 1250, completion_tokens: 250 }, { inputUsdPerMillion: 2, outputUsdPerMillion: 4, apiKey: 'secret-must-not-appear' });
+    assert.deepEqual(usage, { inputTokens: 1250, outputTokens: 250, inputCostUsd: 0.0025, outputCostUsd: 0.001 });
+    assert.equal(engine.metrics.estimatedModelCostUsd, 0.0035);
+    assert.equal(JSON.stringify(engine.metrics).includes('secret-must-not-appear'), false);
+  } finally { engine.close(); }
 });

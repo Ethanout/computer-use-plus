@@ -4,6 +4,7 @@ const readline = require('node:readline');
 const { ComputerEngine } = require('./engine');
 const { AgentRuntime } = require('./agent-runtime');
 const { HttpMcpRuntime } = require('./http-runtime');
+const { WorkerSupervisor } = require('./worker-supervisor');
 const { SERVER_INFO, toolsForProfile, canonicalToolName, result, error, toolResult } = require('./protocol');
 
 const toolProfile = process.env.COMPUTER_USE_PLUS_TOOL_PROFILE || '';
@@ -45,7 +46,8 @@ function createHttpRuntime(currentEngine) {
     token: process.env.COMPUTER_USE_PLUS_HTTP_TOKEN,
     connections,
     profile: toolProfile.toLowerCase() || 'fast-agent',
-    allowedWindows: parseAllowedWindows(process.env.COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS)
+    allowedWindows: parseAllowedWindows(process.env.COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS),
+    worker: createOptionalWorker()
   });
   runtime.start().then((address) => {
     process.stderr.write(`[http] listening on ${address.host}:${address.port}/mcp\n`);
@@ -54,6 +56,24 @@ function createHttpRuntime(currentEngine) {
     process.exitCode = 1;
   });
   return runtime;
+}
+
+function createOptionalWorker() {
+  const command = process.env.COMPUTER_USE_PLUS_WORKER_COMMAND;
+  if (!command) return null;
+  let args = [];
+  if (process.env.COMPUTER_USE_PLUS_WORKER_ARGS) {
+    try { args = JSON.parse(process.env.COMPUTER_USE_PLUS_WORKER_ARGS); }
+    catch { throw new Error('COMPUTER_USE_PLUS_WORKER_ARGS must be a JSON array'); }
+    if (!Array.isArray(args) || args.some((item) => typeof item !== 'string')) throw new Error('COMPUTER_USE_PLUS_WORKER_ARGS must be a JSON array of strings');
+  }
+  return new WorkerSupervisor({
+    command,
+    args,
+    protocolVersion: process.env.COMPUTER_USE_PLUS_WORKER_PROTOCOL || '1',
+    maxRestarts: process.env.COMPUTER_USE_PLUS_WORKER_MAX_RESTARTS,
+    restartWindowMs: process.env.COMPUTER_USE_PLUS_WORKER_RESTART_WINDOW_MS
+  });
 }
 
 function send(message) {
@@ -92,7 +112,8 @@ async function handle(request) {
       else if (name === 'computer.wait') value = await engine.waitForTarget(request.params?.arguments || {});
       else if (name === 'computer.screenshot') value = await engine.screenshot(request.params?.arguments || {});
       else if (name === 'computer.act') value = await engine.act(request.params?.arguments || {});
-      else if (name === 'computer.fast') value = await engine.fastAct(request.params?.arguments || {});
+  else if (name === 'computer.fast') value = await engine.fastAct(request.params?.arguments || {});
+      else if (name === 'computer.ptc') value = await engine.runPtc(request.params?.arguments || {});
       else if (name === 'computer.invoke' || name === 'shortcut.run') {
         const args = request.params?.arguments || {};
         const call = name === 'shortcut.run'
@@ -134,6 +155,7 @@ async function shutdown(exitCode = 0) {
     await agentRuntime.close();
     await httpRuntime?.close();
     await Promise.allSettled([...pending]);
+    await engine.close?.();
     await engine.execution.destroy();
     engine.browserLauncher?.stop();
     engine.ocr.close();

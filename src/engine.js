@@ -16,6 +16,7 @@ const { normalizeToolCall, actionIdToShortcut } = require('./tool-call');
 const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('./action-router');
 const { loadRiskPolicy } = require('./risk-policy');
 const { ProviderConfigStore } = require('./provider-config');
+const { PtcRunner } = require('./ptc-runner');
 
 function sleep(ms, signal = null) {
   if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
@@ -63,6 +64,9 @@ class ComputerEngine {
     this.providerConfig = options.providerConfig || new ProviderConfigStore(path.join(dataDir, 'providers.json'));
     const activeProvider = options.fastAiOptions || this.providerConfig.resolve();
     this.fastAi = options.fastAi || new FastAiClient(activeProvider || {});
+    this.ptc = options.ptc || new PtcRunner(this);
+    this.providerManaged = !options.fastAi;
+    this.providerRevision = this.providerConfig.read().revision;
     this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
     this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
     this.vision = options.vision || new StructuredVisionClient();
@@ -79,6 +83,8 @@ class ComputerEngine {
       actions: 0, successes: 0, failures: 0, strategy: {},
       screenshots: 0, screenshotBytes: 0, ocrCalls: 0, ocrLatencyMs: 0,
       modelCalls: 0, modelInputTokens: 0, modelOutputTokens: 0,
+      modelInputCostUsd: 0, modelOutputCostUsd: 0, estimatedModelCostUsd: 0,
+      providerReloads: 0,
       classifierCalls: 0, classifierHits: 0, classifierLatencyMs: 0,
       toolCalls: 0, shortcutHits: 0, confirmationRequests: 0,
       startedAt: Date.now()
@@ -88,6 +94,29 @@ class ComputerEngine {
       this.maintenanceTimer = setInterval(() => { void this.runMaintenance().catch((error) => process.stderr.write(`[organization] ${error.message}\n`)); }, maintenanceIntervalMs);
       this.maintenanceTimer.unref?.();
     }
+    const reloadIntervalMs = Number(options.providerReloadIntervalMs ?? process.env.COMPUTER_USE_PLUS_PROVIDER_RELOAD_MS ?? 1000);
+    if (this.providerManaged && Number.isFinite(reloadIntervalMs) && reloadIntervalMs > 0) {
+      this.providerReloadTimer = setInterval(() => {
+        try { this.reloadProvider(); } catch (_) { /* keep the local runtime available */ }
+      }, Math.max(250, reloadIntervalMs));
+      this.providerReloadTimer.unref?.();
+    }
+  }
+
+  reloadProvider(force = false) {
+    if (!this.providerManaged) return { ok: false, changed: false, reason: 'provider_injected' };
+    const config = this.providerConfig.read();
+    if (!force && config.revision === this.providerRevision) return { ok: true, changed: false, revision: config.revision };
+    const active = this.providerConfig.resolve();
+    this.fastAi = new FastAiClient(active || {});
+    this.providerRevision = config.revision;
+    this.metrics.providerReloads += 1;
+    return { ok: true, changed: true, revision: config.revision, fastAi: this.fastAi.status() };
+  }
+
+  async close() {
+    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
+    if (this.providerReloadTimer) clearInterval(this.providerReloadTimer);
   }
 
   async runMaintenance() {
@@ -509,10 +538,18 @@ class ComputerEngine {
     return { ok: execution.ok, source: 'fast-ai', model: plan.model, plannedActions: templatedActions, execution, ...(plan.usage ? { usage: plan.usage } : {}) };
   }
 
-  recordModelUsage(usage = null) {
+  recordModelUsage(usage = null, provider = this.fastAi) {
     this.metrics.modelCalls += 1;
-    this.metrics.modelInputTokens += Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0);
-    this.metrics.modelOutputTokens += Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0);
+    const inputTokens = Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0);
+    const outputTokens = Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0);
+    const inputCost = inputTokens * Number(provider?.inputUsdPerMillion || 0) / 1000000;
+    const outputCost = outputTokens * Number(provider?.outputUsdPerMillion || 0) / 1000000;
+    this.metrics.modelInputTokens += inputTokens;
+    this.metrics.modelOutputTokens += outputTokens;
+    this.metrics.modelInputCostUsd += inputCost;
+    this.metrics.modelOutputCostUsd += outputCost;
+    this.metrics.estimatedModelCostUsd += inputCost + outputCost;
+    return { inputTokens, outputTokens, inputCostUsd: inputCost, outputCostUsd: outputCost };
   }
 
   async invokeToolCall(input, context = {}) {
@@ -1060,6 +1097,10 @@ class ComputerEngine {
       }
     }
     return this.ocr.inspect(window.bounds, query);
+  }
+
+  async runPtc(args = {}) {
+    return this.ptc.run(args);
   }
 
   recordCapture(imagePath) {

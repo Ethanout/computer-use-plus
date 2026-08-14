@@ -30,6 +30,8 @@ class FastAiClient {
     this.baseUrl = (options.baseUrl || process.env.COMPUTER_USE_PLUS_FAST_BASE_URL || process.env.COMPUTER_USE_PLUS_AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
     this.model = options.model || process.env.COMPUTER_USE_PLUS_FAST_MODEL || process.env.COMPUTER_USE_PLUS_AI_MODEL || 'gpt-4o-mini';
     this.timeoutMs = Number(options.timeoutMs || process.env.COMPUTER_USE_PLUS_FAST_TIMEOUT_MS || 8000);
+    this.inputUsdPerMillion = Number(options.inputUsdPerMillion || 0);
+    this.outputUsdPerMillion = Number(options.outputUsdPerMillion || 0);
     this.systemPrompt = options.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     this.fetch = options.fetch || globalThis.fetch;
     this.protocol = options.protocol || process.env.COMPUTER_USE_PLUS_AI_PROTOCOL || undefined;
@@ -46,7 +48,7 @@ class FastAiClient {
   get configured() { return Boolean(this.apiKey && this.fetch); }
 
   status() {
-    return { configured: this.configured, model: this.model, protocol: this.provider.protocol, ...(this.configured ? { baseUrl: this.baseUrl } : {}) };
+    return { configured: this.configured, model: this.model, protocol: this.provider.protocol, inputUsdPerMillion: this.inputUsdPerMillion, outputUsdPerMillion: this.outputUsdPerMillion, ...(this.configured ? { baseUrl: this.baseUrl } : {}) };
   }
 
   async planToolCall({ goal, snapshot, params = {}, maxActions = 20, window }) {

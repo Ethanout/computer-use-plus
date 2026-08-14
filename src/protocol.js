@@ -284,6 +284,21 @@ const INTERNAL_TOOL = {
   }
 };
 
+const PTC_TOOL = {
+  name: 'computer.ptc',
+  description: '在受限沙盒中一次组合已注册的本地工具调用；代码、步骤、时间和输出均有上限。',
+  inputSchema: {
+    type: 'object', required: ['code'],
+    properties: {
+      code: { type: 'string', minLength: 1, maxLength: 131072 },
+      params: { type: 'object', additionalProperties: true },
+      capabilities: { type: 'array', items: { type: 'string' }, maxItems: 8 },
+      maxSteps: { type: 'integer', minimum: 1, maximum: 200 },
+      timeoutMs: { type: 'integer', minimum: 100, maximum: 120000 }
+    }, additionalProperties: false
+  }
+};
+
 const HARNESS_TOOL_NAMES = new Map([
   ['computer.state', 'computer_state'],
   ['computer.inspect', 'computer_inspect'],
@@ -309,7 +324,7 @@ function toolsForProfile(profile = '') {
         }
       };
     });
-    return [...agentTools, INTERNAL_TOOL];
+    return [...agentTools, INTERNAL_TOOL, PTC_TOOL];
   }
   if (String(profile).toLowerCase() !== 'harness') return TOOLS;
   return TOOLS
