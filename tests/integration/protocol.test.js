@@ -2,14 +2,28 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { TOOLS, SERVER_INFO } = require('../../src/protocol');
+const { TOOLS, SERVER_INFO, toolsForProfile } = require('../../src/protocol');
 
 test('MCP surface stays intentionally small', () => {
   assert.equal(SERVER_INFO.name, 'computer-use-plus');
   assert.deepEqual(TOOLS.map((tool) => tool.name), [
+    'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities',
     'computer.state', 'computer.inspect', 'computer.wait', 'computer.screenshot',
     'computer.invoke', 'shortcut.run', 'computer.verify', 'computer.cancel',
     'computer.act', 'computer.fast', 'computer.shortcut', 'computer.execution', 'computer.browser'
+  ]);
+});
+
+test('fast-agent profile exposes only the one-call task surface', () => {
+  assert.deepEqual(toolsForProfile('fast-agent').map((tool) => tool.name), [
+    'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities'
+  ]);
+});
+
+test('internal intervention is exposed only by its explicit profile', () => {
+  assert.equal(TOOLS.some((tool) => tool.name === 'agent.internal'), false);
+  assert.deepEqual(toolsForProfile('intervention-agent').map((tool) => tool.name), [
+    'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities', 'agent.internal'
   ]);
 });
 

@@ -37,6 +37,8 @@ npm start
 
 ## 当前工具
 
+- `agent.run`：默认高层入口。提交 `goal`、窗口/窗口作用域和时间、动作、节点预算，本地 Agent 连续选择 shortcut、UIA/OCR/视觉或可选快速 AI，只返回紧凑结果。
+- `agent.status` / `agent.cancel` / `agent.capabilities`：查询异步任务、取消后续动作和读取非敏感能力。结果不包含截图、完整 UI 树、底层动作数组或 API key。
 - `computer.state`：窗口、焦点、能力、记忆统计、运行指标和专用执行桌面状态；`includeUi: true` 时返回一次可直接操作的紧凑 UI 快照、短期 `ref` 和最近状态转换。
 - `computer.inspect`：按窗口和文本/角色查询 UIA 元素；UIA 找不到目标时可对隔离窗口执行 `PrintWindow` 截图并交给本地 OCR，截图只在 `.data` 中短暂存在。
 - `computer.wait`：按窗口标题/进程/类名或元素文本/角色等待出现或消失，减少跨应用流程中的固定延迟。
@@ -46,6 +48,23 @@ npm start
 - `computer.shortcut`：由主 AI 显式保存、列出、运行或整理命名动作链；支持单窗口和独立的跨窗口作用域。
 - `computer.execution`：创建、启动应用、查看状态或销毁 Windows 专用执行桌面；`diagnose` 会只读返回该 desktop 的窗口、启动根进程和 Job Object 内存活进程。该桌面不会被切换到用户前台。
 - `computer.browser`：使用项目 `.data` 下的独立浏览器 profile，通过 CDP 页面目标、Accessibility Tree 和 DOM 边界操作公开页面；支持 `launch`、`list`、`inspect`、`click`、`setValue`、`keys` 和 `stop`，不会连接用户现有浏览器 profile。
+
+只向外部 Agent 暴露最低 token 工具面时设置：
+
+```powershell
+$env:COMPUTER_USE_PLUS_TOOL_PROFILE='fast-agent'
+node src/index.js
+```
+
+该 profile 只注册四个 `agent.*` 高层工具。确实需要内部干预的独立连接可改用 `intervention-agent`，额外注册 `agent.internal`；它当前支持读取任务、按 revision 取消任务，以及从任务已经返回的歧义窗口候选中选择一个继续执行。默认 profile 和 `fast-agent` 均不注册该接口，未注册工具也无法通过隐藏调用绕过。
+
+高层调用示例：
+
+```json
+{"goal":"打开 QQ 联系人","windowScope":{"process":"QQ"},"budget":{"maxSeconds":3,"maxActions":8,"maxNodes":30}}
+```
+
+多个窗口同时匹配时返回 `needs_reasoning: "window_ambiguous"` 和紧凑候选，不会猜测窗口。高风险动作继续返回原有一次性确认令牌；取消只能立即阻止尚未开始的动作，已经进入单个系统驱动调用的动作会在该调用返回后停止后续步骤。
 
 QQ 等 WebView/自绘控件可能没有 `InvokePattern`；UIA 找到目标但调用模式不受支持时，执行层会自动回退到目标边界坐标点击，并在结果中报告 `win32.click.invoke-fallback`。
 

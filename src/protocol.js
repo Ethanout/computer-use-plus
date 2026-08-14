@@ -7,6 +7,53 @@ const SERVER_INFO = {
 
 const TOOLS = [
   {
+    name: 'agent.run',
+    description: '高层快速入口：给出目标和窗口作用域，由本地 Agent 选择 shortcut、UIA/OCR/视觉或快速 AI 并连续执行，返回紧凑结果。',
+    inputSchema: {
+      type: 'object', required: ['goal'],
+      properties: {
+        goal: { type: 'string', minLength: 1, maxLength: 4000 },
+        window: { type: 'string', description: '明确的窗口 ID；优先于 windowScope。' },
+        windowScope: {
+          oneOf: [
+            { type: 'string', minLength: 1, description: '同时模糊匹配进程、标题或窗口类名。' },
+            { type: 'object', properties: { process: { type: 'string' }, title: { type: 'string' }, className: { type: 'string' } }, additionalProperties: false }
+          ]
+        },
+        shortcut_id: { type: 'string' },
+        params: { type: 'object', additionalProperties: true },
+        budget: {
+          type: 'object',
+          properties: {
+            maxSeconds: { type: 'number', minimum: 0.05, maximum: 300 },
+            maxActions: { type: 'integer', minimum: 1, maximum: 100 },
+            maxNodes: { type: 'integer', minimum: 1, maximum: 50 }
+          },
+          additionalProperties: false
+        },
+        async: { type: 'boolean', description: '为 true 时立即返回 taskId，并通过 agent.status 查询。' },
+        stream: { type: 'boolean' },
+        confirm_token: { type: 'string', description: '重新运行相同高风险目标时传回的一次性确认令牌。' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'agent.status',
+    description: '读取高层任务的紧凑状态；不返回截图、完整 UI 树或底层动作数组。',
+    inputSchema: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false }
+  },
+  {
+    name: 'agent.cancel',
+    description: '取消正在规划、等待或执行的高层任务；已经进入驱动的单个调用会在返回后停止后续动作。',
+    inputSchema: { type: 'object', required: ['taskId'], properties: { taskId: { type: 'string' } }, additionalProperties: false }
+  },
+  {
+    name: 'agent.capabilities',
+    description: '返回本地 Agent 的非敏感能力、隔离模式和预算上限，不返回 provider 凭据。',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  },
+  {
     name: 'computer.state',
     description: '获取窗口、焦点和运行能力；includeUi=true 时一次返回可执行 UI 节点快照和短期 ref。',
     inputSchema: {
@@ -219,6 +266,21 @@ const TOOLS = [
   }
 ];
 
+const INTERNAL_TOOL = {
+  name: 'agent.internal',
+  description: '可选内部干预接口：检查任务、取消任务，或在 revision 匹配时从已返回的歧义窗口候选中选择一个继续执行。',
+  inputSchema: {
+    type: 'object', required: ['taskId', 'op'],
+    properties: {
+      taskId: { type: 'string' },
+      op: { type: 'string', enum: ['inspect', 'cancel', 'select-window'] },
+      revision: { type: 'integer', minimum: 1 },
+      window: { type: 'string', description: 'select-window 时只能选择任务已经返回的候选 ID。' }
+    },
+    additionalProperties: false
+  }
+};
+
 const HARNESS_TOOL_NAMES = new Map([
   ['computer.state', 'computer_state'],
   ['computer.inspect', 'computer_inspect'],
@@ -229,6 +291,8 @@ const HARNESS_TOOL_NAMES = new Map([
 ]);
 
 function toolsForProfile(profile = '') {
+  if (String(profile).toLowerCase() === 'fast-agent') return TOOLS.filter((tool) => tool.name.startsWith('agent.'));
+  if (String(profile).toLowerCase() === 'intervention-agent') return [...TOOLS.filter((tool) => tool.name.startsWith('agent.')), INTERNAL_TOOL];
   if (String(profile).toLowerCase() !== 'harness') return TOOLS;
   return TOOLS
     .filter((tool) => HARNESS_TOOL_NAMES.has(tool.name))
@@ -257,4 +321,4 @@ function toolResult(value, isError = false) {
   };
 }
 
-module.exports = { SERVER_INFO, TOOLS, toolsForProfile, canonicalToolName, result, error, toolResult };
+module.exports = { SERVER_INFO, TOOLS, INTERNAL_TOOL, toolsForProfile, canonicalToolName, result, error, toolResult };
