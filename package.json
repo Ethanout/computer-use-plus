@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {
   "name": "computer-use-plus",
   "version": "0.1.0",
@@ -10,25 +9,11 @@
     "start": "node src/index.js",
     "test": "node --test",
     "test:ci": "node scripts/test-ci.js",
-=======
-{
-  "name": "computer-use-plus",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Low-token Windows computer-use MCP server",
-  "main": "src/index.js",
-  "type": "commonjs",
-  "scripts": {
-    "start": "node src/index.js",
-    "test": "node --test",
-    "test:ci": "node scripts/test-ci.js",
->>>>>>> origin/main
     "benchmark": "node scripts/benchmark.js",
     "benchmark:suite": "node scripts/run-benchmark-suite.js",
     "benchmark:providers": "node scripts/benchmark-providers.js",
     "benchmark:windows": "node scripts/benchmark-windows-runtime.js",
     "provider": "node scripts/provider-config.js",
-<<<<<<< HEAD
     "components": "node scripts/components.js",
     "verify:harness": "node scripts/verify-deepseek-harness.js"
   },
@@ -36,11 +21,3 @@
     "node": ">=20"
   }
 }
-=======
-    "verify:harness": "node scripts/verify-deepseek-harness.js"
-  },
-  "engines": {
-    "node": ">=20"
-  }
-}
->>>>>>> origin/main

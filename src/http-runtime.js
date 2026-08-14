@@ -156,12 +156,9 @@ class HttpMcpRuntime {
     if (name === 'agent.capabilities') return session.runtime.capabilities();
     if (name === 'agent.internal') return session.runtime.internal(args);
     if (name === 'computer.ptc') return this.engine.runPtc(args);
-<<<<<<< HEAD
     if (name === 'computer.script') return this.engine.runScript(args);
     if (name === 'agent.components') return this.engine.manageComponents(args);
     if (name === 'agent.visual_alias') return this.engine.manageVisualAlias(args);
-=======
->>>>>>> origin/main
     if (name === 'computer.state') return this.engine.state(args);
     if (name === 'computer.inspect') return this.engine.inspect(args);
     if (name === 'computer.wait') return this.engine.waitForTarget(args);

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # DeepSeek Harness overlay. Pass directly with: dsh --patch cordis.yml
 # Set COMPUTER_USE_PLUS_ROOT when the project is not at D:/projects/computer-use-plus.
 - insert:
@@ -13,22 +12,6 @@
         env:
           COMPUTER_USE_PLUS_TOOL_PROFILE: harness
           COMPUTER_USE_PLUS_RISK_MODE: !!js "process.env.COMPUTER_USE_PLUS_RISK_MODE || 'high-risk'"
-=======
-# DeepSeek Harness overlay. Pass directly with: dsh --patch cordis.yml
-# Set COMPUTER_USE_PLUS_ROOT when the project is not at D:/projects/computer-use-plus.
-- insert:
-    - id: mcp-computer-use-plus
-      name: '@deepseek-ai/dsh-mcp-client'
-      config:
-        serverName: computer_use_plus
-        transport: stdio
-        command: node
-        args: ['src/index.js']
-        cwd: !!js "process.env.COMPUTER_USE_PLUS_ROOT || 'D:/projects/computer-use-plus'"
-        env:
-          COMPUTER_USE_PLUS_TOOL_PROFILE: harness
-          COMPUTER_USE_PLUS_RISK_MODE: !!js "process.env.COMPUTER_USE_PLUS_RISK_MODE || 'high-risk'"
->>>>>>> origin/main
         toolCallTimeoutMs: 60000
         failOnStartupError: true
         reconnect:

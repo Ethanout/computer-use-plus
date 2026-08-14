@@ -173,15 +173,10 @@ class AgentRuntime {
         fastAiConfigured: fastAi?.configured === true,
         uia: process.platform === 'win32' || this.engine.driver?.constructor?.name === 'MockDriver',
         ocr: Boolean(this.engine.ocr?.available),
-<<<<<<< HEAD
         vision: Boolean(this.engine.vision?.available),
         components: typeof this.engine.components?.list === 'function' ? this.engine.components.list().active : {}
       },
       resources: typeof this.engine.resourceRouter?.snapshot === 'function' ? this.engine.resourceRouter.snapshot() : null,
-=======
-        vision: Boolean(this.engine.vision?.available)
-      },
->>>>>>> origin/main
       limits: { maxActions: 100, maxNodes: 50, maxSeconds: 300 },
       internalIntervention: this.internalEnabled,
       ...(this.internalEnabled ? { internalOperations: ['inspect', 'audit', 'pause', 'resume', 'replace-action', 'skip-action', 'cancel', 'select-window'] } : {})
