@@ -22,6 +22,7 @@ function fakeEngine() {
     ocr: { available: false },
     vision: { available: false },
     providerConfig: new ProviderConfigStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cup-http-provider-')), 'providers.json'), { env: { TEST_PROVIDER_KEY: 'secret' } }),
+    reloadProvider() { return { ok: true, changed: true, revision: 1 }; },
     async fastAct() { return { ok: true, source: 'local', execution: { actions: [] } }; },
     async state() { return { ok: true, state: 'test' }; }
   };
@@ -103,6 +104,7 @@ test('HTTP provider admin API is authenticated, revisioned and redacted', async 
     const profile = { id: 'fast', baseUrl: 'https://api.example.test/v1', model: 'fast-model', protocol: 'openai', apiKey: { type: 'env', name: 'TEST_PROVIDER_KEY' } };
     const saved = await adminRequest(address, 'admin-token', { action: 'upsert', profile, revision: 0 }, 'POST');
     assert.equal(saved.status, 200);
+    assert.equal(saved.body.reload.changed, true);
     assert.equal(JSON.stringify(saved.body).includes('secret'), false);
     assert.equal(JSON.stringify(saved.body).includes('TEST_PROVIDER_KEY'), false);
     const conflict = await adminRequest(address, 'admin-token', { action: 'activate', id: 'fast', revision: 0 }, 'POST');

@@ -22,11 +22,13 @@ class HttpMcpRuntime {
     }
     if (!this.tokens.length && options.allowUnauthenticated !== true) throw new Error('http_connection_token_required');
     this.sessions = new Map();
+    this.worker = options.worker || null;
     this.server = null;
   }
 
   async start() {
     if (this.server) return this.address();
+    if (this.worker) await this.worker.start();
     this.server = http.createServer((request, response) => {
       this.handle(request, response).catch((errorValue) => this.sendError(response, null, -32603, errorValue.message));
     });
@@ -48,7 +50,7 @@ class HttpMcpRuntime {
   async handle(request, response) {
     this.cleanup();
     if (request.method === 'GET' && request.url === '/health') {
-      return this.sendJson(response, 200, { ok: true, name: SERVER_INFO.name, sessions: this.sessions.size });
+      return this.sendJson(response, 200, { ok: true, name: SERVER_INFO.name, sessions: this.sessions.size, ...(this.worker ? { worker: this.worker.status() } : {}) });
     }
     if (request.url === '/admin/providers') return this.handleProviders(request, response);
     if (request.url !== '/mcp' || request.method !== 'POST') return this.sendJson(response, 404, { ok: false, reason: 'not_found' });
@@ -86,9 +88,21 @@ class HttpMcpRuntime {
     try { body = await readJson(request); }
     catch (errorValue) { return this.sendJson(response, 400, { ok: false, reason: errorValue.message }); }
     try {
-      if (body.action === 'upsert') return this.sendJson(response, 200, { ok: true, profile: this.engine.providerConfig.upsert(body.profile, body.revision) });
-      if (body.action === 'remove') return this.sendJson(response, 200, this.engine.providerConfig.remove(body.id, body.revision));
-      if (body.action === 'activate') return this.sendJson(response, 200, this.engine.providerConfig.activate(body.id, body.revision));
+      if (body.action === 'upsert') {
+        const profile = this.engine.providerConfig.upsert(body.profile, body.revision);
+        const reload = this.engine.reloadProvider?.();
+        return this.sendJson(response, 200, { ok: true, profile, ...(reload ? { reload } : {}) });
+      }
+      if (body.action === 'remove') {
+        const value = this.engine.providerConfig.remove(body.id, body.revision);
+        const reload = value.ok ? this.engine.reloadProvider?.() : null;
+        return this.sendJson(response, 200, { ...value, ...(reload ? { reload } : {}) });
+      }
+      if (body.action === 'activate') {
+        const value = this.engine.providerConfig.activate(body.id, body.revision);
+        const reload = this.engine.reloadProvider?.();
+        return this.sendJson(response, 200, { ...value, ...(reload ? { reload } : {}) });
+      }
       return this.sendJson(response, 400, { ok: false, reason: 'provider_action_invalid' });
     } catch (errorValue) {
       const status = errorValue.message === 'provider_revision_conflict' ? 409 : 400;
@@ -141,6 +155,7 @@ class HttpMcpRuntime {
     if (name === 'agent.cancel') return session.runtime.cancel(args);
     if (name === 'agent.capabilities') return session.runtime.capabilities();
     if (name === 'agent.internal') return session.runtime.internal(args);
+    if (name === 'computer.ptc') return this.engine.runPtc(args);
     if (name === 'computer.state') return this.engine.state(args);
     if (name === 'computer.inspect') return this.engine.inspect(args);
     if (name === 'computer.wait') return this.engine.waitForTarget(args);
@@ -177,6 +192,7 @@ class HttpMcpRuntime {
   async close() {
     await Promise.allSettled([...this.sessions.values()].map((session) => session.runtime.close()));
     this.sessions.clear();
+    await this.worker?.stop?.();
     if (!this.server) return;
     await new Promise((resolve) => this.server.close(() => resolve()));
     this.server = null;
