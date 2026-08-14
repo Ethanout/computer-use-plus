@@ -299,6 +299,46 @@ const PTC_TOOL = {
   }
 };
 
+const SCRIPT_TOOL = {
+  name: 'computer.script',
+  description: '在每次任务独立临时工作区中运行受限 JavaScript、PowerShell 或可选 Python；默认只可调用注册电脑工具，文件、进程和网络能力必须显式声明并确认。',
+  inputSchema: {
+    type: 'object', required: ['language', 'code'],
+    properties: {
+      language: { type: 'string', enum: ['javascript', 'powershell', 'python'] },
+      code: { type: 'string', minLength: 1, maxLength: 131072 },
+      params: { type: 'object', additionalProperties: true },
+      capabilities: { type: 'array', items: { type: 'string', enum: ['window-control', 'filesystem', 'network', 'process'] }, maxItems: 4 },
+      taskId: { type: 'string', pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,80}$' },
+      timeoutMs: { type: 'integer', minimum: 100, maximum: 120000 },
+      maxSteps: { type: 'integer', minimum: 1, maximum: 200 },
+      maxOutputBytes: { type: 'integer', minimum: 1024, maximum: 4194304 },
+      maxFileBytes: { type: 'integer', minimum: 1024, maximum: 16777216 },
+      keepWorkspace: { type: 'boolean' },
+      confirm_token: { type: 'string' }
+    }, additionalProperties: false
+  }
+};
+
+const COMPONENTS_TOOL = {
+  name: 'agent.components',
+  description: '管理可选本地组件的安装、激活、卸载和空间状态；仅供明确的 intervention-agent 配置连接使用。',
+  inputSchema: {
+    type: 'object', required: ['action'],
+    properties: {
+      action: { type: 'string', enum: ['list', 'install', 'activate', 'uninstall'] },
+      id: { type: 'string' }, version: { type: 'string' },
+      manifest: { type: 'object', additionalProperties: true }
+    }, additionalProperties: false
+  }
+};
+
+const VISUAL_ALIAS_TOOL = {
+  name: 'agent.visual_alias',
+  description: '管理经过多次验证的视觉 caption 别名；只保存作用域、角色和短语，不保存截图。',
+  inputSchema: { type: 'object', required: ['action'], properties: { action: { type: 'string', enum: ['record', 'resolve', 'stats'] }, scopeKey: { type: 'string' }, caption: { type: 'string' }, role: { type: 'string' }, alias: { type: 'string' }, success: { type: 'boolean' } }, additionalProperties: false }
+};
+
 const HARNESS_TOOL_NAMES = new Map([
   ['computer.state', 'computer_state'],
   ['computer.inspect', 'computer_inspect'],
@@ -324,7 +364,7 @@ function toolsForProfile(profile = '') {
         }
       };
     });
-    return [...agentTools, INTERNAL_TOOL, PTC_TOOL];
+    return [...agentTools, INTERNAL_TOOL, PTC_TOOL, SCRIPT_TOOL, COMPONENTS_TOOL, VISUAL_ALIAS_TOOL];
   }
   if (String(profile).toLowerCase() !== 'harness') return TOOLS;
   return TOOLS

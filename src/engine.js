@@ -17,6 +17,10 @@ const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('./ac
 const { loadRiskPolicy } = require('./risk-policy');
 const { ProviderConfigStore } = require('./provider-config');
 const { PtcRunner } = require('./ptc-runner');
+const { ScriptRunner } = require('./script-runner');
+const { ComponentManager } = require('./component-manager');
+const { ResourceRouter } = require('./resource-router');
+const { VisualAliasStore } = require('./visual-alias');
 
 function sleep(ms, signal = null) {
   if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,6 +69,10 @@ class ComputerEngine {
     const activeProvider = options.fastAiOptions || this.providerConfig.resolve();
     this.fastAi = options.fastAi || new FastAiClient(activeProvider || {});
     this.ptc = options.ptc || new PtcRunner(this);
+    this.scriptRunner = options.scriptRunner || new ScriptRunner(this, { dataDir: this.dataDir });
+    this.components = options.components || new ComponentManager({ dataDir: this.dataDir });
+    this.resourceRouter = options.resourceRouter || new ResourceRouter(options.resourceRouterOptions);
+    this.visualAliases = options.visualAliases || new VisualAliasStore(path.join(this.dataDir, 'visual-aliases.json'));
     this.providerManaged = !options.fastAi;
     this.providerRevision = this.providerConfig.read().revision;
     this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
@@ -156,6 +164,7 @@ class ComputerEngine {
         vision: this.vision.available,
         visionProvider: this.vision.status(),
         fastAi: this.fastAi.status(),
+        resources: this.resourceRouter.snapshot(),
       },
       memory: this.memory.stats(),
       execution: {
@@ -278,7 +287,8 @@ class ComputerEngine {
     if (!args.window) return { windows: await this.driver.listWindows() };
     const query = args.query || {};
     let elements = [];
-    let strategy = 'uia';
+    const route = this.resourceRouter.choose({ mode: args.mode || 'auto', visionAvailable: this.vision.available, ocrAvailable: this.ocr.available, isolated: this.isolated });
+    let strategy = route.strategy === 'uia-ocr' ? 'uia' : route.strategy;
     if (args.mode === 'vision') {
       elements = await this.inspectVision(args.window, query);
       return { window: args.window, strategy: 'vision.structured', count: elements.length, elements: elements.map(this.compactElement) };
@@ -292,7 +302,7 @@ class ComputerEngine {
       this.metrics.ocrLatencyMs += Date.now() - ocrStarted;
     }
     const ranked = rankElements(elements || [], query);
-    return { window: args.window, strategy, count: ranked.length, elements: ranked.map(this.compactElement) };
+    return { window: args.window, strategy, route: route.reason, count: ranked.length, elements: ranked.map(this.compactElement) };
   }
 
   async inspectVision(windowId, query = {}) {
@@ -578,6 +588,27 @@ class ComputerEngine {
 
   async runPtc(args = {}) {
     return this.ptc.run(args);
+  }
+
+  async runScript(args = {}) {
+    return this.scriptRunner.run(args);
+  }
+
+  async manageComponents(args = {}) {
+    const action = String(args.action || 'list');
+    if (action === 'list') return this.components.list();
+    if (action === 'install') return this.components.install(args.manifest, { fetch: global.fetch });
+    if (action === 'activate') return this.components.activate(args.id, args.version);
+    if (action === 'uninstall') return this.components.uninstall(args.id, args.version);
+    throw new Error('component_action_invalid');
+  }
+
+  manageVisualAlias(args = {}) {
+    const operation = String(args.action || 'resolve');
+    if (operation === 'record') return this.visualAliases.record(args);
+    if (operation === 'resolve') return this.visualAliases.resolve(args);
+    if (operation === 'stats') return this.visualAliases.stats();
+    throw new Error('visual_alias_action_invalid');
   }
 
   async invokeGuarded(operation, confirmationToken = '', context = {}) {
@@ -1221,7 +1252,9 @@ function operationDigest(operation) {
     window: operation.window,
     name: operation.name,
     params: operation.params,
-    actions: operation.actions
+    actions: operation.actions,
+    digest: operation.digest,
+    capabilities: operation.capabilities
   })).digest('hex');
 }
 

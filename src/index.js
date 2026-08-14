@@ -113,7 +113,10 @@ async function handle(request) {
       else if (name === 'computer.screenshot') value = await engine.screenshot(request.params?.arguments || {});
       else if (name === 'computer.act') value = await engine.act(request.params?.arguments || {});
   else if (name === 'computer.fast') value = await engine.fastAct(request.params?.arguments || {});
-      else if (name === 'computer.ptc') value = await engine.runPtc(request.params?.arguments || {});
+       else if (name === 'computer.ptc') value = await engine.runPtc(request.params?.arguments || {});
+       else if (name === 'computer.script') value = await engine.runScript(request.params?.arguments || {});
+       else if (name === 'agent.components') value = await engine.manageComponents(request.params?.arguments || {});
+       else if (name === 'agent.visual_alias') value = engine.manageVisualAlias(request.params?.arguments || {});
       else if (name === 'computer.invoke' || name === 'shortcut.run') {
         const args = request.params?.arguments || {};
         const call = name === 'shortcut.run'
