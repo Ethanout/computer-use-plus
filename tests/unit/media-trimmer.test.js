@@ -4,14 +4,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { trimManifest, parseTime } = require('../../src/media-trimmer');
 
 function run(command, args) {
   return new Promise((resolve, reject) => { const child = spawn(command, args, { windowsHide: true, stdio: 'ignore' }); child.once('error', reject); child.once('close', (code) => code ? reject(new Error(`${command}:${code}`)) : resolve()); });
 }
 
-test('local media trimming is resumable and verifies output', async () => {
+const ffmpegAvailable = spawnSync('ffmpeg', ['-version'], { windowsHide: true, stdio: 'ignore' }).status === 0;
+
+test('local media trimming is resumable and verifies output', { skip: !ffmpegAvailable }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-media-'));
   const input = path.join(dir, 'input.mp4');
   const manifest = path.join(dir, 'manifest.json');

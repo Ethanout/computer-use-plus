@@ -20,6 +20,8 @@ class WorkerSupervisor {
     this.lastError = null;
     this.startPromise = null;
     this.restartTimer = null;
+    this.pending = new Map();
+    this.requestSequence = 0;
   }
 
   async start() {
@@ -43,6 +45,11 @@ class WorkerSupervisor {
         if (!settled) { settled = true; clearTimeout(timer); reject(new Error(this.lastError)); }
       });
       child.on('message', (message) => {
+        if (message?.type === 'response' && message.id) {
+          const pending = this.pending.get(String(message.id));
+          if (pending) { this.pending.delete(String(message.id)); clearTimeout(pending.timer); if (message.error) pending.reject(new Error(String(message.error))); else pending.resolve(message.result); }
+          return;
+        }
         if (!message || message.type !== 'ready') return;
         if (String(message.protocolVersion || '') !== this.protocolVersion) {
           this.lastError = 'worker_protocol_mismatch';
@@ -58,6 +65,8 @@ class WorkerSupervisor {
         const expected = this.stopping;
         this.child = null;
         this.started = false;
+        for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('worker_restarted')); }
+        this.pending.clear();
         if (!settled) {
           settled = true;
           clearTimeout(timer);
@@ -72,6 +81,17 @@ class WorkerSupervisor {
   async send(message) {
     if (!this.started || !this.child) throw new Error('worker_not_ready');
     await new Promise((resolve, reject) => this.child.send(message, (error) => error ? reject(new Error('worker_send_failed')) : resolve()));
+  }
+
+  async request(payload, options = {}) {
+    if (!this.started || !this.child) throw new Error('worker_not_ready');
+    const id = `${process.pid}-${++this.requestSequence}`;
+    const timeoutMs = bounded(options.timeoutMs, 100, 120000, 30000);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('worker_request_timeout')); }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
+      this.child.send({ type: 'request', id, payload }, (error) => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(new Error('worker_send_failed')); } });
+    });
   }
 
   scheduleRestart() {

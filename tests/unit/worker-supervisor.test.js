@@ -15,6 +15,15 @@ test('worker supervisor performs protocol handshake, IPC send and graceful stop'
   assert.equal(worker.status().running, false);
 });
 
+test('worker supervisor reuses a ready model worker for bounded requests', async () => {
+  const readyScript = "process.send({type:'ready',protocolVersion:'1'}); process.on('message',m=>{if(m.type==='request')process.send({type:'response',id:m.id,result:{echo:m.payload}})});";
+  const worker = new WorkerSupervisor({ command: process.execPath, args: ['-e', readyScript], startTimeoutMs: 2000 });
+  try {
+    await worker.start();
+    assert.deepEqual(await worker.request({ model: 'local' }), { echo: { model: 'local' } });
+  } finally { await worker.stop(); }
+});
+
 test('worker supervisor rejects a protocol mismatch and does not expose command details', async () => {
   const worker = new WorkerSupervisor({ command: process.execPath, args: ['-e', "process.send({type:'ready',protocolVersion:'wrong'});"], startTimeoutMs: 1000, maxRestarts: 0 });
   await assert.rejects(() => worker.start(), /worker_protocol_mismatch|worker_ready_timeout/);

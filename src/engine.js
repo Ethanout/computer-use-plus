@@ -164,7 +164,7 @@ class ComputerEngine {
         vision: this.vision.available,
         visionProvider: this.vision.status(),
         fastAi: this.fastAi.status(),
-        resources: this.resourceRouter.snapshot(),
+        resources: await this.resourceRouter.probe(),
       },
       memory: this.memory.stats(),
       execution: {

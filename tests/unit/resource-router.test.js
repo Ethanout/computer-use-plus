@@ -15,3 +15,10 @@ test('resource router selects vision only when it is available and isolated', ()
   assert.equal(router.choose({ resources: { freeMemoryBytes: 10 ** 12, load1m: 0, battery: { onBattery: false } }, visionAvailable: true, isolated: true }).strategy, 'uia-omniparser-vision');
   assert.equal(router.choose({ resources: { freeMemoryBytes: 10 ** 12, load1m: 0, battery: { onBattery: false } }, visionAvailable: false, isolated: false, ocrAvailable: false }).strategy, 'uia');
 });
+
+test('resource probe degrades to explicit unknown values when optional probes are unavailable', async () => {
+  const result = await new ResourceRouter().probe();
+  assert.equal(typeof result.freeMemoryBytes, 'number');
+  assert.equal(typeof result.battery.known, 'boolean');
+  assert.equal(typeof result.gpu.known, 'boolean');
+});

@@ -340,7 +340,7 @@ PTC runner 直接消费内部结构化事件，不把每一步结果重新发送
 5. [部分完成] 实现 Provider/key 管理 CLI/API、配置 revision、脱敏状态、显式连接测试、常驻 Engine revision 热重载和 token/USD 估算指标；快速 provider 未配置时所有确定性、本地识别和 shortcut 能力仍可运行。剩余为独立模型 worker 重启/复用和真实 provider benchmark。
 6. [已完成 headless 核心] 实现受限 JavaScript PTC runner，以及仅在 `intervention-agent` profile 暴露的 `computer.script`。脚本任务使用 `.data/scripts/<task-id>` 独立临时工作区，默认结束清理；支持 JavaScript、Windows PowerShell 和检测到用户明确安装的 Python。脚本必须声明 capability，默认仅可调用注册电脑工具；文件访问限制在任务目录，进程/网络能力需要一次性风险确认，所有语言均有代码、步骤、超时、输出、文件和进程预算，子进程使用受限环境并在超时后回收。仍需补充真实模型 worker 复用和更完整的跨平台进程树回收验收。
 7. [已完成 headless 核心] 实现 `ComponentManager` 和 intervention-only `agent.components`：manifest 校验、HTTPS 限制、空间预检、流式下载、已有 `.part` 断点续传、SHA-256/大小校验、版本目录原子激活、失败清理、激活切换、卸载和状态列表。模型权重仍需后续按真实 provider/OmniParser manifest 做设备兼容 benchmark；基础安装不会自动下载组件。
-8. [部分完成] 已实现 `ResourceRouter` 和 `agent.capabilities.resources`：按内存、CPU 负载、电池策略、隔离状态和组件可用性选择 UIA、OCR 或视觉候选，并返回降级原因。仍需接入 Windows 电池/GPU 探测、OmniParser 组件实际热加载和跨设备成本 benchmark。
+8. [部分完成] 已实现 `ResourceRouter` 和 `agent.capabilities.resources`：按内存、CPU 负载、Windows 电池状态、NVIDIA GPU/显存、隔离状态和组件可用性选择 UIA、OCR 或视觉候选，并返回降级原因；探测命令有严格超时且不可用时降级为 `known:false`。仍需接入 OmniParser 组件实际热加载和跨设备成本 benchmark。
 9. [已完成 headless 核心] 实现作用域隔离的 `VisualAliasStore` 和 intervention-only `agent.visual_alias`：caption/角色只有在重复验证成功后才稳定，冲突不覆盖，按容量淘汰，持久化不保存截图；GUI 和视觉组件接入仍待后续。
 10. 完成受管理浏览器 profile、网页任务、独立登录状态、CDP、下载目录和站点权限的 headless API；暂不实现 GUI 标签页。
 11. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
