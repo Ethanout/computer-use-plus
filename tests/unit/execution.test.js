@@ -38,3 +38,10 @@ test('execution data housekeeping is bounded and only removes owned files', () =
   assert.equal(result.removed, 3);
   assert.ok(result.reclaimedBytes > 0);
 });
+
+test('foreground UIA clicks fall back when a control lacks InvokePattern', () => {
+  const scriptPath = path.join(__dirname, '..', '..', 'src', 'drivers', 'desktop.ps1');
+  const script = fs.readFileSync(scriptPath, 'utf8');
+  assert.match(script, /try \{\s*\$invoker = \$target\.GetCurrentPattern\([\s\S]*?\} catch \{\s*# Some WebView/);
+  assert.match(script, /win32\.click\.invoke-fallback/);
+});

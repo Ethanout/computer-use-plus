@@ -47,6 +47,8 @@ npm start
 - `computer.execution`：创建、启动应用、查看状态或销毁 Windows 专用执行桌面；`diagnose` 会只读返回该 desktop 的窗口、启动根进程和 Job Object 内存活进程。该桌面不会被切换到用户前台。
 - `computer.browser`：使用项目 `.data` 下的独立浏览器 profile，通过 CDP 页面目标、Accessibility Tree 和 DOM 边界操作公开页面；支持 `launch`、`list`、`inspect`、`click`、`setValue`、`keys` 和 `stop`，不会连接用户现有浏览器 profile。
 
+QQ 等 WebView/自绘控件可能没有 `InvokePattern`；UIA 找到目标但调用模式不受支持时，执行层会自动回退到目标边界坐标点击，并在结果中报告 `win32.click.invoke-fallback`。
+
 服务端在每次 `computer.act` 后自动更新底层 UI 定位记忆，模型不能直接改写定位器和状态转换统计；主 AI 可以通过 `computer.shortcut` 显式管理可复用动作链。
 后台维护达到候选、变更量或空闲阈值且配置了整理 AI 时，会自动生成待审 proposal；它不会自动 merge、rename、archive 或删除 shortcut。待审数量通过 `computer.state.memory.organization.pendingProposals` 可见，主 AI 或用户仍需显式应用。
 `computer.state.metrics` 只负责累计动作策略、OCR 次数与耗时、截图次数和实际图像字节数，用于成本/延迟评估；直接截图和 OCR/结构化视觉产生的内部临时 PNG 都按实际文件字节计量。它不是动作链本体。供模型一次规划完整链路的数据来自 `computer.state.snapshot`、最近 `transitions` 和已保存的 `computer.shortcut`。
