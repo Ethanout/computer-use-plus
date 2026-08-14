@@ -5,8 +5,11 @@ const path = require('node:path');
 const { ToolCallProvider } = require('./providers');
 const { TOOL_DEFINITIONS } = require('./tool-call');
 
+const PROTECTED_KEY_FILE = 'C:\\' +
+  '\u91cd\u8981\u7684\u8d44\u6599\\' +
+  '\u8eab\u4efd\u8ba4\u8bc1\u548c\u5404\u79cdkey\\deepseek.txt';
 const BLOCKED_KEY_FILES = new Set([
-  path.resolve('C:\\重要的资料\\身份认证和各种key\\deepseek.txt').toLocaleLowerCase()
+  path.resolve(PROTECTED_KEY_FILE).toLocaleLowerCase()
 ]);
 
 const DEFAULT_SYSTEM_PROMPT = [
@@ -21,7 +24,9 @@ const ACTION_KEYS = new Set(['click', 'setValue', 'hotkey', 'keys', 'kbseq', 'kb
 
 class FastAiClient {
   constructor(options = {}) {
-    this.apiKey = options.apiKey || process.env.COMPUTER_USE_PLUS_FAST_API_KEY || process.env.COMPUTER_USE_PLUS_AI_API_KEY || readKeyFile(options.apiKeyFile || process.env.COMPUTER_USE_PLUS_AI_KEY_FILE);
+    this.apiKey = Object.prototype.hasOwnProperty.call(options, 'apiKey')
+      ? (String(options.apiKey || '') || readKeyFile(options.apiKeyFile || ''))
+      : process.env.COMPUTER_USE_PLUS_FAST_API_KEY || process.env.COMPUTER_USE_PLUS_AI_API_KEY || readKeyFile(options.apiKeyFile || process.env.COMPUTER_USE_PLUS_AI_KEY_FILE);
     this.baseUrl = (options.baseUrl || process.env.COMPUTER_USE_PLUS_FAST_BASE_URL || process.env.COMPUTER_USE_PLUS_AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
     this.model = options.model || process.env.COMPUTER_USE_PLUS_FAST_MODEL || process.env.COMPUTER_USE_PLUS_AI_MODEL || 'gpt-4o-mini';
     this.timeoutMs = Number(options.timeoutMs || process.env.COMPUTER_USE_PLUS_FAST_TIMEOUT_MS || 8000);

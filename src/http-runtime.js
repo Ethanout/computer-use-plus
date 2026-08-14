@@ -50,6 +50,7 @@ class HttpMcpRuntime {
     if (request.method === 'GET' && request.url === '/health') {
       return this.sendJson(response, 200, { ok: true, name: SERVER_INFO.name, sessions: this.sessions.size });
     }
+    if (request.url === '/admin/providers') return this.handleProviders(request, response);
     if (request.url !== '/mcp' || request.method !== 'POST') return this.sendJson(response, 404, { ok: false, reason: 'not_found' });
     const connection = this.authenticate(request);
     if (!connection) return this.sendJson(response, 401, { ok: false, reason: 'http_unauthorized' });
@@ -73,6 +74,26 @@ class HttpMcpRuntime {
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!this.tokens.length && token === '') return { token: '', profile: this.defaultProfile, allowedWindows: this.defaultAllowedWindows };
     return this.tokens.find((item) => item.token === token) || null;
+  }
+
+  async handleProviders(request, response) {
+    const connection = this.authenticate(request);
+    if (!connection) return this.sendJson(response, 401, { ok: false, reason: 'http_unauthorized' });
+    if (!this.engine.providerConfig) return this.sendJson(response, 503, { ok: false, reason: 'provider_config_unavailable' });
+    if (request.method === 'GET') return this.sendJson(response, 200, { ok: true, ...this.engine.providerConfig.list() });
+    if (request.method !== 'POST') return this.sendJson(response, 405, { ok: false, reason: 'method_not_allowed' });
+    let body;
+    try { body = await readJson(request); }
+    catch (errorValue) { return this.sendJson(response, 400, { ok: false, reason: errorValue.message }); }
+    try {
+      if (body.action === 'upsert') return this.sendJson(response, 200, { ok: true, profile: this.engine.providerConfig.upsert(body.profile, body.revision) });
+      if (body.action === 'remove') return this.sendJson(response, 200, this.engine.providerConfig.remove(body.id, body.revision));
+      if (body.action === 'activate') return this.sendJson(response, 200, this.engine.providerConfig.activate(body.id, body.revision));
+      return this.sendJson(response, 400, { ok: false, reason: 'provider_action_invalid' });
+    } catch (errorValue) {
+      const status = errorValue.message === 'provider_revision_conflict' ? 409 : 400;
+      return this.sendJson(response, status, { ok: false, reason: errorValue.message });
+    }
   }
 
   getSession(id, connection) {
