@@ -11,6 +11,9 @@ const tests = fs.readdirSync(unitDir)
   .sort()
   .map((file) => path.join(unitDir, file));
 
-tests.push(path.join(root, 'tests', 'integration', 'protocol.test.js'));
+tests.push(
+  path.join(root, 'tests', 'integration', 'protocol.test.js'),
+  path.join(root, 'tests', 'integration', 'agent-stdio.test.js')
+);
 const child = spawnSync(process.execPath, ['--test', ...tests], { cwd: root, stdio: 'inherit' });
 process.exit(child.status ?? 1);

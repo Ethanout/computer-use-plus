@@ -16,7 +16,26 @@ const { normalizeToolCall, actionIdToShortcut } = require('./tool-call');
 const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('./action-router');
 const { loadRiskPolicy } = require('./risk-policy');
 
-function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+function sleep(ms, signal = null) {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  if (signal.aborted) return Promise.reject(abortError(signal));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(done, ms);
+    function done() { signal.removeEventListener('abort', aborted); resolve(); }
+    function aborted() { clearTimeout(timer); signal.removeEventListener('abort', aborted); reject(abortError(signal)); }
+    signal.addEventListener('abort', aborted, { once: true });
+  });
+}
+
+function abortError(signal) {
+  const reason = signal?.reason;
+  const message = reason instanceof Error ? reason.message : String(reason || 'task_cancelled');
+  return Object.assign(new Error(message), { code: message === 'task_timeout' ? 'task_timeout' : 'task_cancelled' });
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortError(signal);
+}
 
 function ensureDataDir(dataDir) { fs.mkdirSync(dataDir, { recursive: true }); }
 
@@ -399,6 +418,7 @@ class ComputerEngine {
 
   async fastAct(args = {}) {
     if (!args.window || !args.goal) throw new Error('window_and_goal_required');
+    throwIfAborted(args.signal);
     const localWindowKey = await this.getWindowKey(args.window);
     const routed = await resolveShortcutWithClassifier(this.memory, localWindowKey, args.goal, {
       explicitId: args.shortcut_id,
@@ -412,7 +432,11 @@ class ComputerEngine {
     }
     const localShortcut = routed.shortcut;
     if (localShortcut) {
-      const execution = await this.invokeGuarded({ type: 'shortcut', window: args.window, windowKey: localWindowKey, name: localShortcut.name, params: args.params || {} });
+      const execution = await this.invokeGuarded(
+        { type: 'shortcut', window: args.window, windowKey: localWindowKey, name: localShortcut.name, params: args.params || {} },
+        args.confirm_token,
+        { signal: args.signal, maxActions: args.maxActions }
+      );
       return { ok: execution.ok, source: routed.source === 'classifier' ? 'local-classifier' : 'local-shortcut', shortcut: localShortcut.name, execution, ...(routed.confidence ? { confidence: routed.confidence } : {}) };
     }
     const snapshot = args.snapshot || await this.state({ window: args.window, includeUi: true, maxNodes: args.maxNodes || 30, includeTransitions: true }).then((state) => state.snapshot);
@@ -431,7 +455,8 @@ class ComputerEngine {
           onToolCall: async (toolCall) => {
             if (earlyExecutionPromise) return earlyExecutionPromise;
             streamDispatchLatencyMs = Date.now() - startedAt;
-            earlyExecutionPromise = this.invokeToolCall(toolCall, { defaultWindow: args.window, params });
+            throwIfAborted(args.signal);
+            earlyExecutionPromise = this.invokeToolCall(toolCall, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
             return earlyExecutionPromise;
           }
         });
@@ -448,7 +473,8 @@ class ComputerEngine {
             ...(call.usage ? { usage: call.usage } : {})
           };
         }
-        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params });
+        throwIfAborted(args.signal);
+        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
         return { ok: execution.ok, source: 'fast-ai-tool-call-stream-fallback', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
@@ -458,7 +484,8 @@ class ComputerEngine {
       try {
         const call = await this.fastAi.planToolCall({ goal: args.goal, window: args.window, snapshot, params, maxActions: args.maxActions || 20 });
         this.recordModelUsage(call.usage);
-        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params });
+        throwIfAborted(args.signal);
+        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
         return { ok: execution.ok, source: 'fast-ai-tool-call', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
@@ -468,7 +495,10 @@ class ComputerEngine {
     this.recordModelUsage(plan.usage);
     if (!plan.actions.length) return { ok: false, reason: 'fast_ai_no_safe_actions', model: plan.model, ...(plan.usage ? { usage: plan.usage } : {}) };
     const templatedActions = plan.actions.map((action) => this.resolveActionRefs(args.window, action));
-    const execution = await this.act({ window: args.window, actions: MemoryStore.interpolate(templatedActions, params) });
+    throwIfAborted(args.signal);
+    const actions = MemoryStore.interpolate(templatedActions, params);
+    if (actions.length > Number(args.maxActions || 20)) throw new Error('task_action_budget_exceeded');
+    const execution = await this.act({ window: args.window, actions, signal: args.signal });
     return { ok: execution.ok, source: 'fast-ai', model: plan.model, plannedActions: templatedActions, execution, ...(plan.usage ? { usage: plan.usage } : {}) };
   }
 
@@ -491,18 +521,19 @@ class ComputerEngine {
     if (call.name === 'shortcut.run') {
       const name = actionIdToShortcut(args.shortcut_id || args.name);
       if (!name) throw new Error('shortcut_id_required');
-      return this.invokeGuarded({ type: 'shortcut', window: args.window, name, params: args.params || {} }, args.confirm_token);
+      return this.invokeGuarded({ type: 'shortcut', window: args.window, name, params: args.params || {} }, args.confirm_token || context.confirmToken, context);
     }
     if (call.name === 'computer.invoke') {
       if (args.shortcut_id) {
-        return this.invokeGuarded({ type: 'shortcut', window: args.window, name: actionIdToShortcut(args.shortcut_id), params: args.params || {} }, args.confirm_token);
+        return this.invokeGuarded({ type: 'shortcut', window: args.window, name: actionIdToShortcut(args.shortcut_id), params: args.params || {} }, args.confirm_token || context.confirmToken, context);
       }
-      return this.invokeGuarded({ type: 'actions', window: args.window, actions: args.actions || [] }, args.confirm_token);
+      return this.invokeGuarded({ type: 'actions', window: args.window, actions: args.actions || [] }, args.confirm_token || context.confirmToken, context);
     }
     throw new Error('tool_call_unknown_tool');
   }
 
-  async invokeGuarded(operation, confirmationToken = '') {
+  async invokeGuarded(operation, confirmationToken = '', context = {}) {
+    throwIfAborted(context.signal);
     if (!operation.window) throw new Error('window_required');
     let actions = operation.actions;
     if (operation.type === 'shortcut') {
@@ -513,13 +544,15 @@ class ComputerEngine {
     }
     if (!Array.isArray(actions) || !actions.length) throw new Error('actions_required');
     this.validateActionBatch(actions);
+    if (context.maxActions && actions.length > Number(context.maxActions)) throw new Error('task_action_budget_exceeded');
     const guardedOperation = { ...operation, actions };
     const gate = await this.guardActions(guardedOperation, actions, confirmationToken, [operation.window]);
     if (gate) return gate;
     // A saved shortcut already has an explicit, bounded action contract. Each
     // action result verifies this replay; reserve full UI-tree observation for
     // learning, recovery, and ordinary actions so hot shortcuts stay hot.
-    const execution = await this.act({ window: operation.window, windowKey: operation.windowKey, actions, observe: operation.type !== 'shortcut' });
+    throwIfAborted(context.signal);
+    const execution = await this.act({ window: operation.window, windowKey: operation.windowKey, actions, observe: operation.type !== 'shortcut', signal: context.signal });
     if (operation.type === 'shortcut') this.metrics.shortcutHits += 1;
     return { ok: execution.ok, ...(operation.type === 'shortcut' ? { shortcut: operation.name } : {}), execution };
   }
@@ -795,6 +828,7 @@ class ComputerEngine {
       throw new Error('window_and_actions_required');
     }
     const started = Date.now();
+    throwIfAborted(args.signal);
     const results = [];
     const windowKey = args.windowKey || await this.getWindowKey(args.window);
     const actionSignature = this.actionSignature(args.actions);
@@ -812,8 +846,9 @@ class ComputerEngine {
     }
     try {
       for (const action of args.actions) {
+        throwIfAborted(args.signal);
         const resolvedAction = this.resolveActionRefs(args.window, action);
-        const result = await this.executeAction(args.window, resolvedAction, windowKey);
+        const result = await this.executeAction(args.window, resolvedAction, windowKey, args.signal);
         results.push(result);
         if (result.ok === false) throw Object.assign(new Error(result.reason || 'action_failed'), { actionResult: result });
       }
@@ -844,7 +879,8 @@ class ComputerEngine {
     };
   }
 
-  async executeAction(windowId, action, windowKey) {
+  async executeAction(windowId, action, windowKey, signal = null) {
+    throwIfAborted(signal);
     if (!action || typeof action !== 'object') throw new Error('invalid_action');
     if (action.click) {
       const query = { ...action.click };
@@ -936,25 +972,26 @@ class ComputerEngine {
       this.metrics.strategy[strategy] = (this.metrics.strategy[strategy] || 0) + 1;
       return { ok: Boolean(result.ok), strategy, changed: result.changed || [] };
     }
-    if (action.wait) return this.waitFor(windowId, action.wait);
+    if (action.wait) return this.waitFor(windowId, action.wait, signal);
     throw new Error('unsupported_action');
   }
 
-  async waitFor(windowId, wait) {
+  async waitFor(windowId, wait, signal = null) {
     const requestedMs = wait.seconds !== undefined
       ? Number(wait.seconds) * 1000
       : Number(wait.timeoutMs ?? wait.timeout ?? 2000);
     const timeout = Math.max(0, Math.min(Number.isFinite(requestedMs) ? requestedMs : 2000, 30000));
     if (!wait.text) {
       if (wait.state) return { ok: false, reason: 'state_verification_requires_observable_text_or_future_adapter' };
-      await sleep(timeout);
+      await sleep(timeout, signal);
       return { ok: true, strategy: 'delay' };
     }
     const started = Date.now();
     while (Date.now() - started <= timeout) {
+      throwIfAborted(signal);
       const elements = await this.driver.inspect(windowId, { text: wait.text, limit: 3 });
       if (elements && elements.length) return { ok: true, strategy: 'uia.event_or_poll', changed: [`text:${wait.text}`] };
-      await sleep(Math.min(100, Math.max(20, timeout / 10)));
+      await sleep(Math.min(100, Math.max(20, timeout / 10)), signal);
     }
     return { ok: false, reason: 'wait_timeout', text: wait.text };
   }
