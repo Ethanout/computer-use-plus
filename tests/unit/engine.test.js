@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 'use strict';
 
 const test = require('node:test');
@@ -25,6 +26,35 @@ test('encodes function-key shortcuts for Windows SendKeys', () => {
   assert.equal(engine.encodeHotkey(['ALT', 'F4']), '%{F4}');
 });
 
+=======
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { ComputerEngine, summarizeOrganizationCandidates } = require('../../src/engine');
+const { MockDriver } = require('../../src/drivers/mock');
+const { MemoryStore } = require('../../src/memory');
+const { ProviderConfigStore } = require('../../src/provider-config');
+
+test('act executes a compact action batch and stores a locator', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-'));
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  const output = await engine.act({ window: 'mock-1', actions: [{ click: { text: '保存', role: 'button' } }, { keys: ['w', 'a'] }] });
+  assert.equal(output.ok, true);
+  assert.equal(output.actions.length, 2);
+  assert.equal(engine.memory.stats().records, 1);
+  assert.ok(engine.memory.lookup('mock|mock', { text: '保存', role: 'button' }));
+});
+
+test('encodes function-key shortcuts for Windows SendKeys', () => {
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: { stats: () => ({ records: 0 }) } });
+  assert.equal(engine.encodeHotkey(['ALT', 'F4']), '%{F4}');
+});
+
+>>>>>>> origin/main
 test('accepts compact kbseq and absolute-time kbops actions', async () => {
   const driver = new MockDriver();
   const engine = new ComputerEngine({ driver, memory: { stats: () => ({ records: 0 }) } });
@@ -98,6 +128,89 @@ test('state can return one action-ready UI snapshot with reusable refs', async (
 
 test('metadata and OCR captures count actual temporary image bytes', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-capture-metrics-'));
+<<<<<<< HEAD
+  const driver = new MockDriver();
+  driver.windows[0].bounds = { x: 10, y: 20, width: 100, height: 80 };
+  let captureOptions;
+  driver.capture = async (_window, options) => {
+    captureOptions = options;
+    const imagePath = path.join(dir, `capture-${Date.now()}-${Math.random()}.png`);
+    fs.writeFileSync(imagePath, Buffer.alloc(321, 1));
+    return { path: imagePath, bounds: driver.windows[0].bounds, scale: 1 };
+  };
+  const ocr = { available: true, inspectImage: async () => [{ text: '保存', role: 'text', bounds: { x: 10, y: 20, width: 20, height: 10 } }], close() {} };
+  const engine = new ComputerEngine({ driver, dataDir: dir, ocr, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  engine.isolated = true;
+
+  await engine.screenshot({ window: 'mock-1', mode: 'metadata' });
+  assert.equal(engine.metrics.screenshots, 1);
+  assert.equal(engine.metrics.screenshotBytes, 321);
+  await engine.inspect({ window: 'mock-1', mode: 'ocr', query: { text: '保存' } });
+  assert.equal(engine.metrics.screenshots, 2);
+  assert.equal(engine.metrics.screenshotBytes, 642);
+  assert.equal(engine.metrics.ocrCalls, 1);
+  const image = await engine.screenshot({ window: 'mock-1', mode: 'image', coordinateGrid: true, tickPixels: 125 });
+  assert.deepEqual(captureOptions, { coordinateGrid: true, tickPixels: 125 });
+  assert.deepEqual(image.screens[0].coordinates, { origin: 'window-top-left', units: 'physical-pixels', screenOrigin: { x: 10, y: 20 }, grid: true, tickPixels: 125 });
+});
+
+test('isolated UIA-only batches do not request foreground focus', async () => {
+  const driver = new MockDriver();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-isolated-focus-'));
+  let focusCalls = 0;
+  driver.focus = async () => { focusCalls += 1; return { ok: true }; };
+  const engine = new ComputerEngine({ driver, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  engine.isolated = true;
+  await engine.act({ window: 'mock-1', actions: [{ click: { text: '保存', role: 'button' } }] });
+  assert.equal(focusCalls, 0);
+  await engine.act({ window: 'mock-1', actions: [{ kbseq: ['a'] }] });
+  assert.equal(focusCalls, 1);
+});
+
+test('saved shortcuts use action results without full state-tree observation on every replay', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-shortcut-observation-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  memory.recordWorkflow('save fixture', 'mock|mock', [{ click: { text: '保存', role: 'button' } }]);
+  const driver = new MockDriver();
+  let fullObservationCalls = 0;
+  const inspect = driver.inspect.bind(driver);
+  driver.inspect = async (...args) => { if (args[1]?.limit === 50) fullObservationCalls += 1; return inspect(...args); };
+  const engine = new ComputerEngine({ driver, memory });
+  const output = await engine.manageShortcut({ action: 'run', window: 'mock-1', name: 'save fixture' });
+  assert.equal(output.ok, true);
+  assert.equal(fullObservationCalls, 0);
+});
+
+test('state explicitly reports whether execution is isolated from the foreground desktop', async () => {
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: { stats: () => ({ records: 0 }) }, executionMode: 'backgroundOnly' });
+  const state = await engine.state();
+  assert.equal(state.execution.mode, 'backgroundOnly');
+  assert.equal(state.execution.backgroundOnly, true);
+});
+
+test('verify supports title, element, fingerprint and bounded file assertions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-verify-'));
+  const file = path.join(dir, 'result.txt');
+  fs.writeFileSync(file, 'done', 'utf8');
+  const engine = new ComputerEngine({ driver: new MockDriver(), dataDir: dir, verifyRoots: dir, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  const state = await engine.state({ window: 'mock-1', includeUi: true });
+  const fingerprint = state.snapshot.windows[0].fingerprint;
+  const output = await engine.verify({ window: 'mock-1', assertions: [
+    { type: 'title', includes: 'Mock' },
+    { type: 'element', query: { text: '保存', role: 'button' }, state: 'present', enabled: true },
+    { type: 'fingerprint', equals: fingerprint },
+    { type: 'file', path: file, exists: true, minBytes: 4 }
+  ] });
+  assert.equal(output.ok, true);
+  assert.equal(output.assertions.length, 4);
+  assert.equal(output.assertions.every((item) => item.passed), true);
+  await assert.rejects(() => engine.verify({ assertions: [{ type: 'file', path: path.join(os.tmpdir(), 'outside.txt'), exists: false }] }), /verification_file_outside_allowed_roots/);
+});
+
+test('state reuses a verified transition snapshot before reading UIA', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-predict-state-'));
+=======
+>>>>>>> origin/main
   const driver = new MockDriver();
   driver.windows[0].bounds = { x: 10, y: 20, width: 100, height: 80 };
   let captureOptions;
@@ -355,6 +468,195 @@ test('organize AI returns a proposal without applying it unless applyAi is expli
   const applied = await engine.manageShortcut({ action: 'organize', window: 'mock-1', useAi: true, applyAi: true });
   assert.equal(applied.applied.length, 1);
   assert.equal(memory.listWorkflows('mock|mock').length, 0);
+});
+
+test('fastAct uses the default local action-ID classifier before fast AI', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-local-action-id-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  memory.recordWorkflow('切换资源包', 'mock|mock', [{ kbseq: ['escape'] }], { aliases: ['换材质'] });
+  let fastAiCalls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory,
+    fastAi: { status: () => ({ configured: true }), async plan() { fastAiCalls += 1; return { actions: [] }; } }
+  });
+  const output = await engine.fastAct({ window: 'mock-1', goal: '帮我换一个材质包' });
+  assert.equal(output.source, 'local-classifier');
+  assert.equal(fastAiCalls, 0);
+  assert.equal(engine.metrics.classifierHits, 1);
+});
+
+test('maintenance automatically creates a review-only organization proposal when due', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-auto-organize-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  let calls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory,
+    fastAi: {
+      status: () => ({ configured: true, model: 'mock-organizer' }),
+      organize: async () => { calls += 1; return { model: 'mock-organizer', operations: [{ op: 'archive', name: 'open resource settings' }], usage: { input_tokens: 20, output_tokens: 5 } }; }
+    }
+  });
+<<<<<<< HEAD
+  const output = await engine.fastAct({ window: 'mock-1', goal: '保存' });
+  assert.equal(output.ok, true);
+  assert.equal(memory.stats().workflows, 0);
+});
+
+test('opt-in streamed fast AI executes the first complete tool call only once', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-fast-stream-'));
+  let callbacks = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(),
+    memory: new MemoryStore(path.join(dir, 'memory.json')),
+    fastAi: {
+      status: () => ({ configured: true, model: 'mock-fast' }),
+      planToolCallStream: async ({ onToolCall }) => {
+        const call = { type: 'tool_call', id: 'stream-1', name: 'computer.invoke', arguments: { actions: [{ kbseq: ['A'] }] }, model: 'mock-fast' };
+        callbacks += 1;
+        await onToolCall(call);
+        return call;
+      }
+    }
+  });
+  const output = await engine.fastAct({ window: 'mock-1', goal: 'press A', stream: true });
+  assert.equal(output.ok, true);
+  assert.equal(output.source, 'fast-ai-tool-call-stream');
+  assert.equal(callbacks, 1);
+  assert.equal(engine.metrics.toolCalls, 1);
+});
+
+test('shortcut run uses saved defaults and lets callers override fractional seconds', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-shortcut-'));
+  const memory = new MemoryStore(path.join(dir, 'memory.json'));
+  memory.recordWorkflow('switch resource pack', 'mock|mock', [
+    { wait: { seconds: '{{mywait}}' } }
+  ], { parameters: { name: 'objmc', mywait: 0.3 } });
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory });
+  const waits = [];
+  engine.waitFor = async (_window, wait) => {
+    waits.push(wait.seconds);
+    return { ok: true, strategy: 'delay' };
+  };
+
+  await engine.manageShortcut({ action: 'run', window: 'mock-1', name: 'switch resource pack' });
+  await engine.manageShortcut({ action: 'run', window: 'mock-1', name: 'switch resource pack', params: { mywait: 1.25 } });
+  assert.deepEqual(waits, [0.3, 1.25]);
+});
+
+test('main AI can save aliases and run a shortcut without fast AI', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-save-shortcut-'));
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  const saved = await engine.manageShortcut({
+    action: 'save', window: 'mock-1', name: '切换资源包', aliases: ['切换材质包'],
+    params: { mywait: 0.01 }, actions: [{ wait: { seconds: '{{mywait}}' } }]
+  });
+  assert.equal(saved.ok, true);
+  const listed = await engine.manageShortcut({ action: 'list', window: 'mock-1' });
+  assert.equal(listed.count, 1);
+  assert.deepEqual(listed.shortcuts[0].aliases, ['切换材质包']);
+  const replay = await engine.manageShortcut({ action: 'run', window: 'mock-1', name: '切换材质包' });
+  assert.equal(replay.ok, true);
+  assert.equal(replay.parameters.mywait, 0.01);
+});
+
+test('cross-window shortcuts use a separate ordered window scope', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-cross-shortcut-'));
+  const driver = new MockDriver();
+  driver.windows.push({ id: 'mock-2', title: 'Second', process: 'other', className: 'Other', isForeground: false });
+  const engine = new ComputerEngine({ driver, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  const saved = await engine.manageShortcut({
+    action: 'save', scope: 'cross', windows: { browser: 'mock-1', explorer: 'mock-2' }, name: '下载并打开',
+    actions: [{ window: 'browser', keys: ['CTRL', 'L'] }, { window: 'explorer', keys: ['ENTER'] }]
+  });
+  assert.equal(saved.ok, true);
+  const single = await engine.manageShortcut({ action: 'list', window: 'mock-1' });
+  assert.equal(single.count, 0);
+  const replay = await engine.manageShortcut({ action: 'run', scope: 'cross', windows: { browser: 'mock-1', explorer: 'mock-2' }, name: '下载并打开' });
+  assert.equal(replay.ok, true);
+  assert.equal(replay.execution.windows.length, 2);
+});
+
+test('cross-window shortcut replay follows the saved route when window object order changes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-cross-route-'));
+  const driver = new MockDriver();
+  driver.windows.push({ id: 'mock-2', title: 'Second', process: 'other', className: 'Other', isForeground: false });
+  const engine = new ComputerEngine({ driver, memory: new MemoryStore(path.join(dir, 'memory.json')) });
+  await engine.manageShortcut({
+    action: 'save', scope: 'cross', windows: { browser: 'mock-1', explorer: 'mock-2' }, name: 'ordered download',
+    actions: [{ window: 'browser', keys: ['CTRL', 'L'] }, { window: 'explorer', keys: ['ENTER'] }]
+  });
+  const replay = await engine.manageShortcut({
+    action: 'run', scope: 'cross', windows: { explorer: 'mock-2', browser: 'mock-1' }, name: 'ordered download'
+  });
+  assert.equal(replay.ok, true);
+  assert.deepEqual(replay.execution.windows.map((item) => item.window), ['browser', 'explorer']);
+});
+
+test('organize exposes ambiguous candidates and applies only explicit main-AI operations', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-organize-'));
+  const engine = new ComputerEngine({ driver: new MockDriver(), memory: new MemoryStore(path.join(dir, 'memory.json')) });
+=======
+>>>>>>> origin/main
+  const common = { window: 'mock-1', beforeFingerprint: 'menu', afterFingerprint: 'done' };
+  await engine.manageShortcut({ action: 'save', ...common, name: 'open settings', actions: [{ kbseq: ['ESC'] }, { click: { text: 'Options' } }, { click: { text: 'Done' } }] });
+  await engine.manageShortcut({ action: 'save', ...common, name: 'open resource settings', actions: [{ kbseq: ['ESC'] }, { click: { text: 'Options' } }, { click: { text: 'Resource Packs' } }, { click: { text: 'Done' } }] });
+  memory.workflowChanges = 50;
+  const result = await engine.runMaintenance();
+  assert.equal(result.organized, true);
+  assert.equal(calls, 1);
+  assert.equal(memory.stats().workflows, 2);
+  assert.equal(memory.stats().organization.pendingProposals, 1);
+  assert.equal(engine.metrics.modelInputTokens, 20);
+  const review = await engine.manageShortcut({ action: 'organize', window: 'mock-1' });
+  assert.equal(review.proposal.operations[0].op, 'archive');
+  clearInterval(engine.maintenanceTimer);
+});
+
+test('maintenance never calls an unconfigured organization AI', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-no-auto-organize-'));
+  let calls = 0;
+  const engine = new ComputerEngine({
+    driver: new MockDriver(), memory: new MemoryStore(path.join(dir, 'memory.json')),
+    fastAi: { status: () => ({ configured: false }), organize: async () => { calls += 1; } }
+  });
+  const result = await engine.runMaintenance();
+  assert.equal(result.reason, 'organizer_not_configured');
+  assert.equal(calls, 0);
+  clearInterval(engine.maintenanceTimer);
+});
+
+test('organization AI receives redacted action shapes instead of values or coordinates', () => {
+  const summary = summarizeOrganizationCandidates([{ similarity: 0.9, left: { name: 'fill form', scope: 'single', uses: 3, actions: [{ setValue: { value: 'private text', x: 123, y: 456, role: 'edit' } }] }, right: { name: 'fill other', actions: [{ click: { text: 'Submit', x: 9, y: 8, role: 'button' } }] } }]);
+  const json = JSON.stringify(summary);
+  assert.doesNotMatch(json, /private text|Submit|123|456/);
+  assert.deepEqual(summary[0].left.actionShape[0], { type: 'setValue', role: 'edit' });
+  assert.deepEqual(summary[0].right.actionShape[0], { type: 'click', role: 'button' });
+});
+
+test('provider revision reloads the managed Fast AI client', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-provider-reload-'));
+  const providerConfig = new ProviderConfigStore(path.join(dataDir, 'providers.json'), { env: { TEST_PROVIDER_KEY: 'secret' } });
+  providerConfig.upsert({ id: 'fast', baseUrl: 'https://api.example.test/v1', model: 'one', protocol: 'openai', apiKey: { type: 'env', name: 'TEST_PROVIDER_KEY' } }, 0);
+  providerConfig.activate('fast', 1);
+  const engine = new ComputerEngine({ dataDir, driver: new MockDriver(), providerConfig, providerReloadIntervalMs: 0 });
+  try {
+    assert.equal(engine.fastAi.model, 'one');
+    providerConfig.upsert({ id: 'fast', baseUrl: 'https://api.example.test/v1', model: 'two', protocol: 'openai', apiKey: { type: 'env', name: 'TEST_PROVIDER_KEY' } }, 2);
+    const reloaded = engine.reloadProvider();
+    assert.equal(reloaded.changed, true);
+    assert.equal(engine.fastAi.model, 'two');
+    assert.equal(engine.metrics.providerReloads, 1);
+  } finally { engine.close(); }
+});
+
+test('model usage records tokens and estimated provider cost without exposing key material', () => {
+  const engine = new ComputerEngine({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'cup-provider-cost-')), driver: new MockDriver(), fastAi: { status: () => ({ configured: true }) }, providerReloadIntervalMs: 0 });
+  try {
+    const usage = engine.recordModelUsage({ prompt_tokens: 1250, completion_tokens: 250 }, { inputUsdPerMillion: 2, outputUsdPerMillion: 4, apiKey: 'secret-must-not-appear' });
+    assert.deepEqual(usage, { inputTokens: 1250, outputTokens: 250, inputCostUsd: 0.0025, outputCostUsd: 0.001 });
+    assert.equal(engine.metrics.estimatedModelCostUsd, 0.0035);
+    assert.equal(JSON.stringify(engine.metrics).includes('secret-must-not-appear'), false);
+  } finally { engine.close(); }
 });
 
 test('fastAct uses the default local action-ID classifier before fast AI', async () => {

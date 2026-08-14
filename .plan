@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 # computer-use-plus 总体计划
 
+=======
+# computer-use-plus 总体计划
+
+>>>>>>> origin/main
 更新时间：2026-08-14
 
 ## 目标
@@ -29,12 +34,22 @@
 - 主 AI 可显式保存模板化 shortcut；单窗口和跨窗口流程分开存储。自动聚类只合并重复、安全且结构等价的变体。
 - 可选快速 AI 与低频整理 AI 共用用户自行配置的 key；快速 AI 不可直接修改长期 shortcut，整理默认 proposal-first。
 - 每小时维护会先执行本地 TTL/容量回收；候选/变更量/空闲阈值到期且配置了 AI 时，后台只生成持久化待审 proposal，不自动修改长期 shortcut。
+<<<<<<< HEAD
 - 高风险操作的策略引擎、链路摘要和单次确认 token；普通导航保持自动执行。
 - provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
+=======
+- 高风险操作的策略引擎、链路摘要和单次确认 token；普通导航保持自动执行。
+- provider 统一解析 OpenAI、Responses、Anthropic、Gemini 的 native tool call 与流式参数片段。
+>>>>>>> origin/main
 - `computer.fast` 支持显式流式早调度：首个完整 tool call 到达即进入原有权限/确认链，网络流和本地动作并行，同一响应不会重复执行。
 - 默认本地 action-ID 分类器使用确定性的 Unicode 字符/n-gram 相似度，只在当前窗口作用域的已有 shortcut ID、名称和别名中选择；低于阈值时拒绝并继续降级，不调用模型也不生成新 ID。
 - benchmark 汇总器和 Edge/Minecraft/微信声明式 suite；默认 dry-run，真实执行必须显式 `--execute`。
 - benchmark runner 按任务前后引擎指标差值记录真实 OCR、截图字节、模型 token、classifier、shortcut、动作和路由成本，不再从步骤名称推测资源使用。
+<<<<<<< HEAD
+- `computer.verify` 支持窗口指纹/标题、元素状态和值、浏览器 URL、限定目录内文件断言。
+- DeepSeek Harness adapter：使用官方 `@deepseek-ai/dsh-mcp-client` 以 stdio 复用 MCP 服务，并提供稳定低 token 的 `harness` 工具档。
+- 本地 Git 仓库已初始化；运行数据、密钥、浏览器 profile、临时文件和媒体文件被 `.gitignore` 排除。
+=======
 - `computer.verify` 支持窗口指纹/标题、元素状态和值、浏览器 URL、限定目录内文件断言。
 - DeepSeek Harness adapter：使用官方 `@deepseek-ai/dsh-mcp-client` 以 stdio 复用 MCP 服务，并提供稳定低 token 的 `harness` 工具档。
 - 本地 Git 仓库已初始化；运行数据、密钥、浏览器 profile、临时文件和媒体文件被 `.gitignore` 排除。
@@ -51,9 +66,26 @@
 - Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具，并真实调用 `computer_state` 得到 `execution.backgroundOnly: true`。`scripts/verify-deepseek-harness.js` 可重复执行 discovery 验收。
 - 统一 tool-call router 同时接受 Harness 展示的六个短工具名，并在执行前归一化为点号 canonical 名称；不会因为中间层返回 `computer_state` 或 `shortcut_run` 而绕过权限链或报未知工具。
 - GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；workflow action 使用 Node 24 runtime 的 `checkout/setup-node@v5`，仓库根目录包含 npm lockfile。2026-08-14 远端同一提交两项 job 均通过，CI 套件为 87 项。
+>>>>>>> origin/main
 
 ## 可选组件与统一配置界面计划
 
+<<<<<<< HEAD
+- `npm test`：91 项自动测试通过；`npm run test:ci`：88 项通过。
+- 普通 MCP 与 `COMPUTER_USE_PLUS_TOOL_PROFILE=harness` 的 stdio `initialize`、`tools/list` 烟测通过。
+- Edge 独立 profile / CDP 真实 smoke：2026-08-14 以 `data:` 页面在专用执行桌面执行；稳态 list + inspect 10 次均成功，P50 4 ms、P95 18 ms、0 截图、0 OCR、0 token。浏览器 setup/冷启动与任务样本分离统计，不将其冒充为单次 CDP 延迟。
+- Windows runtime fixture：2026-08-14 在专用执行桌面实测 UIA inspect 20/20 成功、P50 15.67 ms、P95 17.23 ms；已命中 shortcut 20/20 成功、P50 54.95 ms、P95 67.88 ms；预热 OCR 5/5 成功、P50 423.16 ms、P95 441.16 ms。三条路径均 0 模型 token；shortcut 用 UIA/Win32 动作成功结果作即时验证，完整状态树仅用于学习、恢复和非 shortcut 动作。
+- 现有前台 QQ 实测：窗口 `QQ` 可由通用 UIA 返回 45 个按钮；`computer.act` 对“联系人”执行成功，QQ 控件不支持 `InvokePattern` 时自动回退到窗口坐标点击，结果策略为 `win32.click.invoke-fallback`。该结果只证明前台兼容性，不替代独立实例验收。
+- 截图成本统计覆盖直接截图与 OCR/结构化视觉的内部临时 capture，使用实际 PNG 文件字节而非 base64 或估算值。`computer.screenshot(mode: "image", coordinateGrid: true)` 可生成图内窗口相对坐标标尺，返回 screen origin 和 tick 间隔；该标尺不进入 OCR/视觉原图，避免干扰识别。
+- Harness 官方 bridge 文档已核对：其通过 `mcp__<serverName>__<rawName>` 注册工具，支持 stdio、cwd、env、超时和重连。
+- Harness `0.1.0-rc.6` 已在 Node 24 实际执行 `--patch ... --dump-config` 和完整 headless Host turn；官方 MCP bridge 成功发现全部六个 `mcp__computer_use_plus__*` 工具，并真实调用 `computer_state` 得到 `execution.backgroundOnly: true`。`scripts/verify-deepseek-harness.js` 可重复执行 discovery 验收。
+- 统一 tool-call router 同时接受 Harness 展示的六个短工具名，并在执行前归一化为点号 canonical 名称；不会因为中间层返回 `computer_state` 或 `shortcut_run` 而绕过权限链或报未知工具。
+- GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；workflow action 使用 Node 24 runtime 的 `checkout/setup-node@v5`，仓库根目录包含 npm lockfile。2026-08-14 远端同一提交两项 job 均通过，CI 套件为 87 项。
+
+## 可选组件与统一配置界面计划
+
+=======
+>>>>>>> origin/main
 ### 设计原则
 
 - 基础 MCP 安装保持轻量，不默认下载 CUDA、OCR 语言包、OmniParser 或其他模型权重。
@@ -338,10 +370,17 @@ PTC runner 直接消费内部结构化事件，不把每一步结果重新发送
 3. [已完成基础实现] 实现 `agent.run/status/cancel/capabilities` 快速执行层、任务预算、`needs_reasoning` 交还协议和紧凑结果，使外部 Agent 可以一次调用完成简单操作。已覆盖 shortcut 优先、窗口消歧、异步任务、超时/动作预算、取消信号、高风险确认、bounded task store、紧凑结果和 `fast-agent` stdio profile；后续继续用真实应用成功率与长稳测试收敛。
 4. [部分完成] 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。已完成默认不暴露的 `intervention-agent` profile、服务端工具授权、revision 冲突拒绝、取消和歧义窗口候选选择、通用动作暂停/恢复、候选动作替换/跳过、窗口白名单、应用身份复核、JSONL 审计和容量轮换。仍需在常驻 HTTP runtime 阶段增加连接令牌和真正的连接级权限。
 5. [部分完成] 实现 Provider/key 管理 CLI/API、配置 revision、脱敏状态、显式连接测试、常驻 Engine revision 热重载和 token/USD 估算指标；快速 provider 未配置时所有确定性、本地识别和 shortcut 能力仍可运行。剩余为独立模型 worker 重启/复用和真实 provider benchmark。
+<<<<<<< HEAD
 6. [已完成 headless 核心] 实现受限 JavaScript PTC runner，以及仅在 `intervention-agent` profile 暴露的 `computer.script`。脚本任务使用 `.data/scripts/<task-id>` 独立临时工作区，默认结束清理；支持 JavaScript、Windows PowerShell 和检测到用户明确安装的 Python。脚本必须声明 capability，默认仅可调用注册电脑工具；文件访问限制在任务目录，进程/网络能力需要一次性风险确认，所有语言均有代码、步骤、超时、输出、文件和进程预算，子进程使用受限环境并在超时后回收。仍需补充真实模型 worker 复用和更完整的跨平台进程树回收验收。
 7. [已完成 headless 核心] 实现 `ComponentManager` 和 intervention-only `agent.components`：manifest 校验、HTTPS 限制、空间预检、流式下载、已有 `.part` 断点续传、SHA-256/大小校验、版本目录原子激活、失败清理、激活切换、卸载和状态列表。模型权重仍需后续按真实 provider/OmniParser manifest 做设备兼容 benchmark；基础安装不会自动下载组件。
 8. [部分完成] 已实现 `ResourceRouter` 和 `agent.capabilities.resources`：按内存、CPU 负载、电池策略、隔离状态和组件可用性选择 UIA、OCR 或视觉候选，并返回降级原因。仍需接入 Windows 电池/GPU 探测、OmniParser 组件实际热加载和跨设备成本 benchmark。
 9. [已完成 headless 核心] 实现作用域隔离的 `VisualAliasStore` 和 intervention-only `agent.visual_alias`：caption/角色只有在重复验证成功后才稳定，冲突不覆盖，按容量淘汰，持久化不保存截图；GUI 和视觉组件接入仍待后续。
+=======
+6. [部分完成] 实现受限 JavaScript PTC runner、临时调用上下文、工具/步骤/时间/输出预算和统一风险确认；PTC 只在 intervention profile 暴露，且不能访问 process、require、文件系统或任意网络。仍需临时工作区和声明 capability 的 JavaScript/PowerShell/可选 Python 脚本 runner。
+7. 实现组件管理服务和 CLI/API：空间预检、下载、断点续传、哈希校验、原子激活、失败回滚、更新和卸载。
+8. 实现设备资源监视和本地成本路由器，将 shortcut/记忆、UIA/CDP、OCR、OmniParser detector/caption、结构化视觉接入统一 UI 节点索引。
+9. 实现 visual alias：将 `Person` 等通用 caption 与 QQ `联系人` 等窗口作用域名称关联；只有动作验证成功后才提高别名权重。
+>>>>>>> origin/main
 10. 完成受管理浏览器 profile、网页任务、独立登录状态、CDP、下载目录和站点权限的 headless API；暂不实现 GUI 标签页。
 11. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
 12. 在办公集显设备、8 GB 游戏本和无 GPU VM 上分别运行真实 benchmark，对比高层 `agent.run`、带干预调用与逐步 MCP 调用的外部往返、输入输出 token、成功率和 P95，并根据结果调整自动模式阈值。

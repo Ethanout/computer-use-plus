@@ -23,7 +23,11 @@ test('fast-agent profile exposes only the one-call task surface', () => {
 test('internal intervention is exposed only by its explicit profile', () => {
   assert.equal(TOOLS.some((tool) => tool.name === 'agent.internal'), false);
   assert.deepEqual(toolsForProfile('intervention-agent').map((tool) => tool.name), [
+<<<<<<< HEAD
     'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities', 'agent.internal', 'computer.ptc', 'computer.script', 'agent.components', 'agent.visual_alias'
+=======
+    'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities', 'agent.internal', 'computer.ptc'
+>>>>>>> origin/main
   ]);
   const defaultRun = TOOLS.find((tool) => tool.name === 'agent.run');
   const intervention = toolsForProfile('intervention-agent');
