@@ -15,6 +15,7 @@ const { CdpDriver, BrowserCdpLauncher } = require('./drivers/cdp');
 const { normalizeToolCall, actionIdToShortcut } = require('./tool-call');
 const { LocalActionIdClassifier, resolveShortcutWithClassifier } = require('./action-router');
 const { loadRiskPolicy } = require('./risk-policy');
+const { ProviderConfigStore } = require('./provider-config');
 
 function sleep(ms, signal = null) {
   if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
@@ -59,7 +60,9 @@ class ComputerEngine {
     this.isolated = this.driver instanceof ExecutionDesktopDriver;
     this.ocr = options.ocr || new OcrDriver();
     this.memory = options.memory || new MemoryStore(path.join(dataDir, 'ui-memory.json'));
-    this.fastAi = options.fastAi || new FastAiClient();
+    this.providerConfig = options.providerConfig || new ProviderConfigStore(path.join(dataDir, 'providers.json'));
+    const activeProvider = options.fastAiOptions || this.providerConfig.resolve();
+    this.fastAi = options.fastAi || new FastAiClient(activeProvider || {});
     this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
     this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
     this.vision = options.vision || new StructuredVisionClient();
