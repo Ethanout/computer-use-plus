@@ -161,7 +161,14 @@ try {
       $window = Get-Window $WindowId
       $query = Get-Query
       $target = Find-Target $window $query
-      $invoker = $target.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+      $invoker = $null
+      $invokeFallback = $false
+      try {
+        $invoker = $target.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+      } catch {
+        # Some WebView and custom-drawn controls expose a clickable bounds but no InvokePattern.
+        $invokeFallback = $true
+      }
       if ($invoker) {
         $invoker.Invoke()
         Emit @{ ok = $true; element = Get-ElementData $target; strategy = 'uia.invoke' }
@@ -171,7 +178,7 @@ try {
         [ComputerUsePlus.NativeMethods]::SetCursorPos($x, $y) | Out-Null
         [ComputerUsePlus.NativeMethods]::mouse_event([ComputerUsePlus.NativeMethods]::LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
         [ComputerUsePlus.NativeMethods]::mouse_event([ComputerUsePlus.NativeMethods]::LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
-        Emit @{ ok = $true; element = Get-ElementData $target; strategy = 'win32.click' }
+        Emit @{ ok = $true; element = Get-ElementData $target; strategy = $(if ($invokeFallback) { 'win32.click.invoke-fallback' } else { 'win32.click' }) }
       }
       break
     }
