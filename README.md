@@ -35,6 +35,19 @@ npm start
 
 本地记忆、隔离代理和运行日志默认写入项目下的 `.data/`，可通过 `COMPUTER_USE_PLUS_DATA_DIR` 指定目录。Windows 默认启用 `backgroundOnly`：`computer.state`、`computer.inspect` 和 `computer.act` 都只操作专用执行桌面。仅调试旧的前台模式时可设置 `COMPUTER_USE_PLUS_EXECUTION_MODE=foregroundAllowed`。
 
+## Optional Streamable HTTP runtime
+
+stdio remains the default. To share one engine, model worker, and memory across MCP hosts, start the HTTP endpoint with an explicit token:
+
+```powershell
+$env:COMPUTER_USE_PLUS_HTTP_PORT='8765'
+$env:COMPUTER_USE_PLUS_HTTP_TOKEN='replace-with-a-local-token'
+$env:COMPUTER_USE_PLUS_TOOL_PROFILE='fast-agent'
+node src/index.js
+```
+
+Use `POST http://127.0.0.1:8765/mcp` with `Authorization: Bearer <token>`. The runtime returns `MCP-Session-Id` and keeps task/runtime state per session. Multiple connection profiles can be configured with `COMPUTER_USE_PLUS_HTTP_CONNECTIONS` as a JSON array of `{token, profile, allowedWindows}` objects. The unauthenticated `/health` endpoint only returns liveness and session count; it never returns tokens, provider data, or user input.
+
 ## 当前工具
 
 - `agent.run`：默认高层入口。提交 `goal`、窗口/窗口作用域和时间、动作、节点预算，本地 Agent 连续选择 shortcut、UIA/OCR/视觉或可选快速 AI，只返回紧凑结果。
