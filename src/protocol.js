@@ -273,8 +273,11 @@ const INTERNAL_TOOL = {
     type: 'object', required: ['taskId', 'op'],
     properties: {
       taskId: { type: 'string' },
-      op: { type: 'string', enum: ['inspect', 'cancel', 'select-window'] },
+      op: { type: 'string', enum: ['inspect', 'audit', 'pause', 'resume', 'replace-action', 'skip-action', 'cancel', 'select-window'] },
       revision: { type: 'integer', minimum: 1 },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
+      mode: { type: 'string', enum: ['step', 'auto'] },
+      action: { type: 'object', additionalProperties: true },
       window: { type: 'string', description: 'select-window 时只能选择任务已经返回的候选 ID。' }
     },
     additionalProperties: false
@@ -292,7 +295,22 @@ const HARNESS_TOOL_NAMES = new Map([
 
 function toolsForProfile(profile = '') {
   if (String(profile).toLowerCase() === 'fast-agent') return TOOLS.filter((tool) => tool.name.startsWith('agent.'));
-  if (String(profile).toLowerCase() === 'intervention-agent') return [...TOOLS.filter((tool) => tool.name.startsWith('agent.')), INTERNAL_TOOL];
+  if (String(profile).toLowerCase() === 'intervention-agent') {
+    const agentTools = TOOLS.filter((tool) => tool.name.startsWith('agent.')).map((tool) => {
+      if (tool.name !== 'agent.run') return tool;
+      return {
+        ...tool,
+        inputSchema: {
+          ...tool.inputSchema,
+          properties: {
+            ...tool.inputSchema.properties,
+            pauseBeforeActions: { type: 'boolean', description: 'Pause before the first action so agent.internal can inspect or intervene.' }
+          }
+        }
+      };
+    });
+    return [...agentTools, INTERNAL_TOOL];
+  }
   if (String(profile).toLowerCase() !== 'harness') return TOOLS;
   return TOOLS
     .filter((tool) => HARNESS_TOOL_NAMES.has(tool.name))

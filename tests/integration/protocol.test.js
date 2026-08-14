@@ -25,6 +25,15 @@ test('internal intervention is exposed only by its explicit profile', () => {
   assert.deepEqual(toolsForProfile('intervention-agent').map((tool) => tool.name), [
     'agent.run', 'agent.status', 'agent.cancel', 'agent.capabilities', 'agent.internal'
   ]);
+  const defaultRun = TOOLS.find((tool) => tool.name === 'agent.run');
+  const intervention = toolsForProfile('intervention-agent');
+  const interventionRun = intervention.find((tool) => tool.name === 'agent.run');
+  const internal = intervention.find((tool) => tool.name === 'agent.internal');
+  assert.equal(defaultRun.inputSchema.properties.pauseBeforeActions, undefined);
+  assert.equal(interventionRun.inputSchema.properties.pauseBeforeActions.type, 'boolean');
+  assert.deepEqual(internal.inputSchema.properties.op.enum, [
+    'inspect', 'audit', 'pause', 'resume', 'replace-action', 'skip-action', 'cancel', 'select-window'
+  ]);
 });
 
 test('screenshot coordinate grid schema stays bounded', () => {

@@ -53,6 +53,25 @@ test('fast-agent stdio profile serves the compact high-level MCP surface', async
   assert.equal(byId.get(5).error.code, -32601);
 });
 
+test('invalid window allowlist fails closed without echoing its value', async () => {
+  const child = spawn(process.execPath, ['src/index.js'], {
+    cwd: path.resolve(__dirname, '../..'),
+    env: {
+      ...process.env,
+      CUP_MOCK: '1',
+      COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS: 'not-json-sensitive-value'
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  const code = await new Promise((resolve) => child.once('exit', resolve));
+  assert.notEqual(code, 0);
+  assert.match(stderr, /must be valid JSON/);
+  assert.doesNotMatch(stderr, /not-json-sensitive-value/);
+});
+
 async function waitForResponses(read, count, timeoutMs) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {

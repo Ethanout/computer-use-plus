@@ -336,7 +336,7 @@ PTC runner 直接消费内部结构化事件，不把每一步结果重新发送
 1. 冻结 agent/provider profile、组件 manifest、设备能力、策略预设、能力组合图、按应用覆盖、任务和权限 schema；所有配置先提供 CLI 和本机受限管理 API，并覆盖迁移、回滚和默认值测试。
 2. 把现有 MCP runtime 拆成可常驻核心与隔离 worker，实现 Streamable HTTP、stdio shim、健康检查、共享 endpoint、连接令牌、崩溃限次重启、版本匹配和多宿主复用。
 3. [已完成基础实现] 实现 `agent.run/status/cancel/capabilities` 快速执行层、任务预算、`needs_reasoning` 交还协议和紧凑结果，使外部 Agent 可以一次调用完成简单操作。已覆盖 shortcut 优先、窗口消歧、异步任务、超时/动作预算、取消信号、高风险确认、bounded task store、紧凑结果和 `fast-agent` stdio profile；后续继续用真实应用成功率与长稳测试收敛。
-4. [部分完成] 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。当前已有默认不暴露的 `intervention-agent` profile、服务端工具授权、revision 冲突拒绝、取消和歧义窗口候选选择；仍需实现通用暂停点、候选动作干预、连接级令牌/窗口权限和持久化审计。
+4. [部分完成] 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。已完成默认不暴露的 `intervention-agent` profile、服务端工具授权、revision 冲突拒绝、取消和歧义窗口候选选择、通用动作暂停/恢复、候选动作替换/跳过、窗口白名单、应用身份复核、JSONL 审计和容量轮换。仍需在常驻 HTTP runtime 阶段增加连接令牌和真正的连接级权限。
 5. 实现 Provider/key 管理 CLI/API、连接测试、价格和 token 统计；快速 provider 未配置时所有确定性、本地识别和 shortcut 能力仍可运行。
 6. 实现受限 PTC runner、临时工作区、工具调用预算和统一风险确认；随后实现声明 capability 的 JavaScript/PowerShell/可选 Python 脚本 runner。
 7. 实现组件管理服务和 CLI/API：空间预检、下载、断点续传、哈希校验、原子激活、失败回滚、更新和卸载。

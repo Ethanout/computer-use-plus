@@ -56,6 +56,16 @@ $env:COMPUTER_USE_PLUS_TOOL_PROFILE='fast-agent'
 node src/index.js
 ```
 
+`intervention-agent` pause/intervention example:
+
+```powershell
+$env:COMPUTER_USE_PLUS_TOOL_PROFILE='intervention-agent'
+$env:COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS='[{"process":"qq"}]'
+node src/index.js
+```
+
+Set `pauseBeforeActions: true` on `agent.run`, then use the latest `revision` with `agent.internal`. Supported operations are `inspect`, `pause`, `resume`, `replace-action`, `skip-action`, `cancel`, `select-window`, and `audit`. Replacement actions are revalidated against the action schema and risk policy; audit responses contain only redacted metadata. The current stdio allowlist is service-scoped; connection tokens and true per-connection isolation remain part of the persistent HTTP runtime.
+
 该 profile 只注册四个 `agent.*` 高层工具。确实需要内部干预的独立连接可改用 `intervention-agent`，额外注册 `agent.internal`；它当前支持读取任务、按 revision 取消任务，以及从任务已经返回的歧义窗口候选中选择一个继续执行。默认 profile 和 `fast-agent` 均不注册该接口，未注册工具也无法通过隐藏调用绕过。
 
 高层调用示例：

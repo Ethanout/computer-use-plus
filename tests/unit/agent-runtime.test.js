@@ -24,6 +24,8 @@ function fakeEngine(overrides = {}) {
     actionClassifier: {},
     ocr: { available: true },
     vision: { available: false },
+    validateActionBatch() {},
+    riskPolicy: { evaluate: () => ({ decision: 'allow', risks: [], summary: '' }) },
     cancelConfirmation() {},
     async fastAct(args) {
       calls.push(args);
@@ -179,4 +181,63 @@ test('internal intervention is disabled unless the connection profile enables it
   const { engine } = fakeEngine();
   const runtime = new AgentRuntime(engine);
   assert.throws(() => runtime.internal({ taskId: 'x', op: 'inspect' }), /agent_internal_disabled/);
+});
+
+test('intervention profile can pause, inspect, replace and resume a safe candidate', async () => {
+  const { engine, calls } = fakeEngine({
+    fastAct: async ({ beforeAction }) => {
+      const decision = await beforeAction({ index: 0, total: 1, action: { click: { text: 'Blue' } } });
+      calls.push(decision);
+      return { ok: true, source: 'local', execution: { actions: [{ ok: true, strategy: 'uia' }] } };
+    }
+  });
+  const runtime = new AgentRuntime(engine, { internalEnabled: true });
+  const started = await runtime.run({ goal: 'click blue', window: '1', async: true, pauseBeforeActions: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  const paused = runtime.status({ taskId: started.taskId });
+  assert.equal(paused.status, 'paused');
+  assert.equal(paused.currentStep.actionType, 'click');
+  const inspect = runtime.internal({ taskId: started.taskId, op: 'inspect' });
+  const replaced = runtime.internal({ taskId: started.taskId, op: 'replace-action', revision: inspect.revision, action: { click: { text: 'Green' } } });
+  assert.equal(replaced.status, 'paused');
+  await runtime.tasks.get(started.taskId).promise;
+  assert.equal(runtime.status({ taskId: started.taskId }).status, 'completed');
+  assert.deepEqual(calls[1], { action: { click: { text: 'Green' } } });
+});
+
+test('paused action can be skipped and cancellation wakes the waiter', async () => {
+  let invoked = 0;
+  const { engine } = fakeEngine({
+    fastAct: async ({ beforeAction, signal }) => {
+      const decision = await beforeAction({ index: 0, total: 1, action: { wait: { seconds: 1 } }, signal });
+      if (!decision?.skip) invoked += 1;
+      return { ok: true, source: 'local', execution: { actions: [] } };
+    }
+  });
+  const runtime = new AgentRuntime(engine, { internalEnabled: true });
+  const started = await runtime.run({ goal: 'wait', window: '1', async: true, pauseBeforeActions: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  const paused = runtime.status({ taskId: started.taskId });
+  const skipped = runtime.internal({ taskId: started.taskId, op: 'skip-action', revision: paused.revision });
+  assert.equal(skipped.status, 'paused');
+  await runtime.tasks.get(started.taskId).promise;
+  assert.equal(invoked, 0);
+
+  const second = await runtime.run({ goal: 'wait again', window: '1', async: true, pauseBeforeActions: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(runtime.status({ taskId: second.taskId }).status, 'paused');
+  runtime.cancel({ taskId: second.taskId });
+  await runtime.tasks.get(second.taskId).promise;
+  assert.equal(runtime.status({ taskId: second.taskId }).status, 'cancelled');
+});
+
+test('window policy blocks a reused handle whose application identity changed', async () => {
+  const { engine } = fakeEngine({ windows: [{ id: '1', process: 'QQ', title: 'QQ', className: 'A' }] });
+  const runtime = new AgentRuntime(engine, { allowedWindows: [{ process: 'qq', className: 'a' }] });
+  const output = await runtime.run({ goal: 'test', window: '1' });
+  assert.equal(output.status, 'completed');
+  engine.driver.listWindows = async () => [{ id: '1', process: 'Other', title: 'QQ', className: 'A' }];
+  const second = await runtime.run({ goal: 'test', window: '1' });
+  assert.equal(second.status, 'needs_reasoning');
+  assert.equal(second.needs_reasoning, 'window_not_permitted');
 });
