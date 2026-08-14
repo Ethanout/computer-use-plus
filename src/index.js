@@ -3,6 +3,7 @@
 const readline = require('node:readline');
 const { ComputerEngine } = require('./engine');
 const { AgentRuntime } = require('./agent-runtime');
+const { HttpMcpRuntime } = require('./http-runtime');
 const { SERVER_INFO, toolsForProfile, canonicalToolName, result, error, toolResult } = require('./protocol');
 
 const toolProfile = process.env.COMPUTER_USE_PLUS_TOOL_PROFILE || '';
@@ -11,6 +12,7 @@ const agentRuntime = new AgentRuntime(engine, {
   internalEnabled: toolProfile.toLowerCase() === 'intervention-agent',
   allowedWindows: parseAllowedWindows(process.env.COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS)
 });
+const httpRuntime = createHttpRuntime(engine);
 const tools = toolsForProfile(toolProfile);
 const allowedToolNames = new Set(tools.map((tool) => tool.name));
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
@@ -24,6 +26,34 @@ function parseAllowedWindows(value) {
   catch { throw new Error('COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS must be valid JSON'); }
   if (!Array.isArray(parsed)) throw new Error('COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS must be a JSON array');
   return parsed;
+}
+
+function createHttpRuntime(currentEngine) {
+  const rawPort = process.env.COMPUTER_USE_PLUS_HTTP_PORT;
+  if (rawPort === undefined || rawPort === '') return null;
+  const port = Number(rawPort);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('COMPUTER_USE_PLUS_HTTP_PORT must be an integer from 0 to 65535');
+  let connections = [];
+  const rawConnections = process.env.COMPUTER_USE_PLUS_HTTP_CONNECTIONS;
+  if (rawConnections) {
+    try { connections = JSON.parse(rawConnections); }
+    catch { throw new Error('COMPUTER_USE_PLUS_HTTP_CONNECTIONS must be valid JSON'); }
+  }
+  const runtime = new HttpMcpRuntime(currentEngine, {
+    host: process.env.COMPUTER_USE_PLUS_HTTP_HOST || '127.0.0.1',
+    port,
+    token: process.env.COMPUTER_USE_PLUS_HTTP_TOKEN,
+    connections,
+    profile: toolProfile.toLowerCase() || 'fast-agent',
+    allowedWindows: parseAllowedWindows(process.env.COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS)
+  });
+  runtime.start().then((address) => {
+    process.stderr.write(`[http] listening on ${address.host}:${address.port}/mcp\n`);
+  }).catch((error) => {
+    process.stderr.write(`[http] ${error.message}\n`);
+    process.exitCode = 1;
+  });
+  return runtime;
 }
 
 function send(message) {
@@ -102,6 +132,7 @@ async function shutdown(exitCode = 0) {
   shuttingDown = true;
   try {
     await agentRuntime.close();
+    await httpRuntime?.close();
     await Promise.allSettled([...pending]);
     await engine.execution.destroy();
     engine.browserLauncher?.stop();
