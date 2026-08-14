@@ -6,6 +6,10 @@
 
 构建 Windows 10/11 专用、低 token、低延迟的 MCP computer-use 服务。默认在专用执行桌面和独立应用 profile 中运行，不抢占用户前台桌面。
 
+产品定位调整为独立安装的 Windows 桌面软件和低延迟本地执行 Agent，而不是要求用户手工组合脚本和 MCP 配置。桌面应用提供操作界面、系统托盘、组件安装与能力编排、运行状态和成本诊断；应用启动后自动启动其管理的 MCP runtime，对 Codex、Claude、DeepSeek Harness 和其他 MCP 宿主提供统一服务。外部 Agent 只需提交一次高层目标，本地执行 Agent 自行完成低成本识别、动作编排和验证，避免外部 Agent 逐步读取截图、UI 树并反复调用点击工具。
+
+桌面应用是唯一配置事实来源，MCP 是其对外协议接口。CLI、原有 stdio server 和配置文件继续作为兼容与自动化入口，但普通用户不需要直接使用它们。
+
 核心识别优先级：
 
 ```text
@@ -48,15 +52,309 @@
 - 统一 tool-call router 同时接受 Harness 展示的六个短工具名，并在执行前归一化为点号 canonical 名称；不会因为中间层返回 `computer_state` 或 `shortcut_run` 而绕过权限链或报未知工具。
 - GitHub Actions 在 Windows Node 20 与 Node 22.19.0 上运行，覆盖 CI 测试、FFmpeg 流程和 Harness 工具 profile 烟测；workflow action 使用 Node 24 runtime 的 `checkout/setup-node@v5`，仓库根目录包含 npm lockfile。2026-08-14 远端同一提交两项 job 均通过，CI 套件为 87 项。
 
+## 可选组件与统一配置界面计划
+
+### 设计原则
+
+- 基础 MCP 安装保持轻量，不默认下载 CUDA、OCR 语言包、OmniParser 或其他模型权重。
+- 技术链不是全局固定顺序。程序根据设备能力、应用结构化覆盖率、任务类型、历史成功率、延迟、资源压力、隐私策略和许可证约束，为每次任务选择最低成本路径。
+- 所有可选能力集中在独立桌面应用中管理，用户不需要手工编辑多个配置文件或理解模型内部名称。
+- 主界面不依赖外部浏览器。MCP 的网络传输只监听 `127.0.0.1`，使用应用生成的访问令牌，不暴露到局域网；配置和检测结果保存在应用拥有的数据目录中，密钥仍只引用用户管理的文件、环境变量或 Windows 凭据存储。
+- 安装、更新、卸载和 benchmark 均由程序执行；界面必须在执行前显示准确的下载量、预计安装空间、显存需求、许可证、模型来源和哈希校验状态。
+
+### 使用模式
+
+统一界面提供以下预设，用户仍可展开高级设置逐项覆盖：
+
+1. `自动`（默认）：探测设备和应用能力，动态启停组件；电池供电、显存紧张或前台游戏占用 GPU 时不常驻 caption 模型。
+2. `轻量`：shortcut/记忆、UIA、Win32、CDP 和轻量 OCR；不安装本地视觉模型，必要时使用用户明确允许的远程视觉 provider。
+3. `本地增强`：在轻量模式上安装 OmniParser 检测器；caption、额外 OCR 语言包和本地结构化视觉按需加载。
+4. `完全本地`：禁止上传截图，安装本地 OCR、OmniParser detection/caption 和选定的本地视觉兜底模型；允许更高磁盘、内存和显存占用。
+
+预设只生成策略，不复制配置。用户切换预设后仍能看到每一项最终生效值以及改变原因。
+
+### 独立桌面应用与统一配置中心
+
+首版采用 Tauri 2 构建 Windows 桌面壳，复用系统 WebView2 渲染界面，并将现有 Node MCP runtime 打包为受管理 sidecar。选择 Tauri 而不是 Electron，是为了降低安装体积、常驻内存和冷启动开销；在实施前用最小 spike 验证 sidecar 生命周期、签名、更新和 WebView2 可用性，若不满足稳定性要求再评估原生 .NET 壳。
+
+应用包含主窗口和系统托盘。关闭主窗口默认最小化到托盘；退出应用时让用户选择停止后台服务或继续保持 MCP 服务。系统登录时自动启动应用是可选设置，首次安装默认关闭，不得未经用户同意创建自启动项。
+
+统一配置中心包含以下主页面：
+
+1. `概览`：当前模式、设备能力、组件状态、磁盘/内存/显存预算、远程调用权限和最近一次健康检查。
+2. `组件`：逐项安装、暂停、更新、修复、卸载和 benchmark OCR、OmniParser detector、icon caption、本地结构化视觉以及 provider adapter。
+3. `应用`：为 Edge、QQ、微信、Minecraft 和后续发现的应用设置自动/结构化优先/视觉优先/禁用视觉，并显示该应用各策略的成功率和 P50/P95。
+4. `测试与成本`：使用用户选择的无副作用测试窗口运行 benchmark，显示延迟、命中率、OCR/截图次数、图像字节、token、估算费用、显存峰值和失败原因。
+5. `连接`：显示 MCP 服务状态、传输方式、端口、已连接宿主和最近调用；为 Codex、Claude Desktop、DeepSeek Harness 等生成配置片段，并提供复制、连接测试和撤销令牌操作。
+
+界面不得显示 API key 内容、截图原始字节或长期输入内容。涉及下载数 GB、切换远程截图权限、删除模型或清除记忆时必须二次确认；普通策略调整即时生效且可以恢复默认值。
+
+### 能力组合与运行时生命周期
+
+桌面应用维护一张能力组合图，而不是把所有已安装组件同时启动：
+
+```text
+用户预设与逐项覆盖
+→ 设备/应用能力探测
+→ 解析可用组件和依赖
+→ 生成生效策略
+→ 启停对应 worker
+→ 启动或热更新 MCP runtime
+```
+
+预设保留 `自动`、`轻量`、`本地增强`、`完全本地`。界面允许用户在预设基础上逐项开启或关闭 OCR 语言包、OmniParser detector、icon caption、本地视觉、远程 provider、应用 profile 和记忆策略；每次更改显示依赖、资源增量和降级影响。存在冲突或缺少依赖时不启动半配置状态，而是保留上一次可工作的组合并给出修复操作。
+
+应用启动流程：
+
+```text
+读取并校验配置
+→ 探测设备和模型完整性
+→ 启动轻量 MCP 核心
+→ 按生效组合启动可选 worker
+→ 健康检查
+→ 发布本机 MCP endpoint
+→ 进入托盘常驻
+```
+
+MCP runtime 优先提供本机 Streamable HTTP endpoint，使多个宿主共享同一份内存、模型和记忆。继续提供轻量 stdio shim：对于只支持 stdio 的宿主，由 shim 连接已经运行的桌面后台；桌面应用未启动时，shim 可以按用户策略启动应用或回退到轻量独立 runtime。不得为每个 MCP 客户端重复加载 Florence/OCR 模型。
+
+后台进程必须由桌面应用统一监管：崩溃限次重启、健康检查、版本匹配、日志轮转和退出回收。模型 worker 与 MCP 核心进程隔离，视觉模型崩溃或显存不足不能导致 shortcut、UIA/CDP 和连接管理同时退出。
+
+### 面向外部 Agent 的快速执行层
+
+桌面应用内置一个任务范围受限、低延迟的执行 Agent。它不是要取代 Codex 等负责规划和复杂推理的上层 Agent，而是把原本需要多次 MCP 往返的简单电脑操作压缩为一次高层调用：
+
+```js
+await agent.run({
+  goal: '打开 QQ 联系人',
+  windowScope: 'QQ',
+  budget: { maxSeconds: 3, maxActions: 8 }
+});
+```
+
+内部执行：
+
+```text
+目标归一化
+→ shortcut / action-ID / visual alias 匹配
+→ 选择最低成本识别方式
+→ 编译临时 PTC 或动作事务
+→ 本地连续执行
+→ 最小状态验证
+→ 返回紧凑结果和成本摘要
+```
+
+典型返回不包含截图、完整 UI 树或逐步动作数组：
+
+```js
+{
+  ok: true,
+  task: '打开 QQ 联系人',
+  verified: true,
+  strategy: 'uia+invoke-fallback',
+  elapsedMs: 74,
+  externalRoundTrips: 1,
+  modelCalls: 0
+}
+```
+
+快速执行层按成本逐级处理：
+
+1. 已验证 shortcut、规则和 action-ID 分类器，0 模型 token。
+2. UIA/CDP、OmniParser、OCR、visual alias 和本地 PTC 编译，尽量 0 模型 token。
+3. 用户配置了快速 provider 时，只对无法确定的局部候选做一次小模型判断。
+4. 任务超出能力、预算或无法验证时立即返回结构化 `needs_reasoning`，由上层 Agent 决定下一步，不在本地无限尝试。
+
+MCP 增加最小高层接口：
+
+- `agent.run`：提交简单目标、窗口作用域、参数、预算和风险边界；短任务同步返回，长任务返回 `task_id`。
+- `agent.status`：读取紧凑进度、等待确认原因和最终验证结果。
+- `agent.cancel`：取消任务并回收动作/脚本进程树。
+- `agent.capabilities`：返回当前已安装组件、可执行 shortcut/任务类型和限制，不返回庞大 UI 状态。
+
+现有 `shortcut.run`、`computer.invoke/state/inspect/verify/cancel` 继续保留给调试、恢复和需要精细控制的上层 Agent。默认文档和宿主配置优先暴露高层快速接口；底层工具可通过高级模式启用，避免工具 schema 本身消耗过多 token。
+
+### 可选内部观察与干预
+
+部分上层 Agent 需要在自动执行失败、候选歧义或复杂恢复时干预本地执行 Agent。为此增加默认关闭的 `内部操作` 能力。它按 agent profile 和 MCP 连接分别授权；未启用时不向该连接注册内部 tool schema，因此普通调用不会承担额外 schema token。
+
+连接模式分为：
+
+1. `高层`（默认）：只使用 `agent.run/status/cancel/capabilities`，本地 Agent 自行完成内部循环。
+2. `可观察`：额外允许读取当前阶段、紧凑候选、已用预算、验证结果和脱敏事件流，但不能改变执行。
+3. `可干预`：允许暂停后修改下一步、选择候选、调整剩余预算、执行一个受限内部工具、提供恢复提示或把控制权交回本地 Agent。
+
+内部控制使用一个可选的 `agent.internal` 工具以控制 schema 体积：
+
+```js
+await agent.internal({
+  taskId: 'task_123',
+  op: 'inspect',
+  detail: 'candidates'
+});
+
+await agent.internal({
+  taskId: 'task_123',
+  op: 'select-candidate',
+  revision: 7,
+  candidateRef: 'n17'
+});
+```
+
+首批 `op`：
+
+- `inspect`：读取 plan 摘要、当前状态、候选、最近动作或失败诊断；默认不返回原始截图和完整 UI 树。
+- `pause` / `resume` / `cancel`：控制任务生命周期。
+- `select-candidate`：在本地 Agent 已给出的候选中选择目标。
+- `replace-next`：替换尚未执行的下一步动作或短 PTC 片段。
+- `invoke-tool`：在当前任务窗口作用域内执行一次已注册的底层工具。
+- `set-budget`：在管理员设定的硬上限内调整剩余时间、动作数或识别成本。
+- `handoff`：在本地自动、外部接管和恢复本地自动之间切换。
+
+干预采用暂停点和乐观并发控制。每次可变更操作必须携带最新 `revision`；revision 已变化时拒绝写入并要求重新 inspect，防止本地 Agent 和外部 Agent 同时点击。`invoke-tool`、`replace-next` 和 PTC 仍经过相同的窗口作用域、风险策略、单次确认 token 和动作预算，不能成为绕过权限的后门。
+
+原始截图、OCR 全文或完整 UI 树只有在连接同时拥有对应数据权限且显式请求时返回，并继续计入图像字节和 token 成本。所有内部干预记录到任务审计轨迹，但默认只向外部 Agent返回紧凑差异。
+
+快速执行 Agent 必须满足：
+
+- 只在显式窗口作用域和动作预算内运行；不得自行扩展任务目标。
+- 普通导航可以连续执行，高风险副作用仍由桌面应用弹窗或上层一次性确认 token 放行。
+- 本地循环使用结构化事件，不把每一步回传给外部 Agent；失败恢复只读取必要的局部状态。
+- 同一任务的内部模型不得通过 MCP 再调用自身 `agent.run`，防止递归和成本失控。
+- `computer.state.metrics` 增加外部往返节省量、内部动作数、内部/外部模型调用、输入输出 token、识别策略和验证成本，用真实 benchmark 验证是否省 token。
+
+首批验收任务包括：切换窗口/标签、打开指定设置页、点击已命名或已学习图标、填写无副作用表单、运行已有 shortcut 和执行有明确终态的短流程。开放式搜索、复杂内容判断、不可逆操作和无法定义终态的任务默认交还上层 Agent。
+
+### 独立 Agent 工作台
+
+桌面软件本身也提供这个快速执行 Agent 的直接操作界面，不要求外部 Codex、Claude 或其他 MCP 宿主才能运行简单任务。主窗口增加 `任务`、`网页`、`PTC`、`脚本` 和 `Provider` 工作区：
+
+1. `任务`：输入短目标、选择执行配置和预算、查看紧凑执行状态、处理高风险确认、暂停/继续/取消任务，并从失败点恢复；复杂任务可以明确转交已连接的上层 Agent。
+2. `网页`：使用受管理的 WebView2 profile 打开 agent 专用网页和标签页，支持站点收藏、独立登录状态、站点权限、下载目录和 CDP；默认不复用用户日常浏览器 profile。
+3. `PTC`：查看、编辑和运行快速执行 Agent 临时编译的 Programmatic Tool Calling 程序，在一次本地执行中组合已注册的 `computer.*`、`shortcut.*`、浏览器和验证工具，减少模型往返与中间 token。
+4. `脚本`：编写、预览和运行简单的 JavaScript/TypeScript、PowerShell，以及安装了可选 Python runtime 时的 Python 脚本。
+5. `Provider`：配置多个 agent/provider profile，包括 API 类型、base URL、model、能力、价格和 API key 引用；测试连接和 tool calling，但永远不回显完整 key。
+
+用户可以创建 agent 配置，例如“完全本地”“低成本办公”“快速网页操作”“Minecraft”，为其组合 provider、模型、工具权限、网页 profile、记忆作用域、资源预算和确认策略。预设继续作为初始模板，用户配置是对模板的显式覆盖，不因软件升级被重置。
+
+API key 支持 Windows Credential Manager、用户选择的 key 文件和环境变量。界面只显示来源、末尾掩码和最近验证状态；日志、崩溃报告、MCP 响应、诊断导出和测试快照不得包含 key。继续禁止自动扫描或读取受保护路径 `C:\重要的资料\身份认证和各种key\deepseek.txt`；只有用户在界面中明确选择一个非禁止路径时才建立引用。
+
+### 临时 PTC 与脚本安全边界
+
+PTC 与普通脚本是两种不同权限层：
+
+- PTC 默认是临时、受限的工具编排代码，只能调用注册工具、读取本次任务变量和处理结构化结果；不能直接访问文件系统、注册表、任意网络、进程或密钥。
+- PTC 使用有执行步数、运行时间、循环次数、并发数和输出字节上限的 sandbox。运行前显示将使用的工具和风险摘要；高风险工具调用仍必须经过现有确认 token，代码不能绕过权限链。
+- PTC 默认随任务结束清理。用户可以显式保存为脚本或 shortcut 候选，但程序不得因为运行成功一次就自动写入长期记忆。
+- 普通脚本拥有更广能力，必须声明 `filesystem`、`network`、`process`、`window-control` 等 capability，并在首次运行或能力变化时确认。脚本在应用拥有的临时工作目录运行，支持停止、超时、输出截断和进程树回收。
+- 脚本编辑器提供格式化、语法检查、只读运行预览、参数表单和执行日志。涉及发送消息、发布、购买、覆盖/删除文件、账号与权限变化时继续走统一高风险确认。
+- agent 生成的代码和用户手写代码使用同一 runner 与权限模型；不得为“AI 自动生成”提供更高权限。
+
+首版 PTC 只支持一个小型 JavaScript 子集和异步工具调用，例如：
+
+```js
+const state = await tools.computer_state({ mode: 'compact' });
+if (state.window.app === 'QQ') {
+  await tools.computer_invoke({ click: '联系人' });
+  await tools.computer_verify({ element: '联系人', selected: true });
+}
+```
+
+PTC runner 直接消费内部结构化事件，不把每一步结果重新发送给模型。只有程序请求模型判断、执行失败需要恢复或最终摘要时才产生新的模型往返。
+
+### 可选组件目录
+
+每个组件使用统一 manifest，至少声明：
+
+```js
+{
+  id: 'omniparser-caption-v2',
+  capability: 'icon-caption',
+  optional: true,
+  downloadBytes: 1083916964,
+  installedBytes: null,
+  minimumVramMb: 1200,
+  supportedAccelerators: ['cuda'],
+  license: 'MIT',
+  source: 'microsoft/OmniParser-v2.0',
+  sha256: '01b934b0fe2d07b181e2d07752f16ae27c9d0ea88ddffe13a9a003aa9680f233'
+}
+```
+
+首批组件：
+
+- OCR runtime 与中/英文语言包，允许只安装所需语言。
+- OmniParser interactive-region detector。v2 检测器的 AGPL 约束必须醒目标识；最新 MIT YOLOv9-E 在完成本机准确率、速度和哈希验证后再提供为推荐选项。
+- OmniParser Florence icon caption，默认按需加载并在空闲或显存压力升高时卸载。
+- 可插拔本地结构化视觉模型，不随基础包安装。
+- OpenAI-compatible/OpenAI/Anthropic/Gemini provider adapter；只配置 endpoint、model 和 key 引用，不复制密钥。
+- Edge、QQ、微信、Minecraft 的独立 profile/实例启动配置，不要求所有未知应用预先编写专用 adapter。
+
+组件安装必须进入独立版本目录，支持断点续传、SHA-256 校验、原子激活、失败回滚和按版本卸载。Python/CUDA 环境与模型权重分别统计空间；禁止用模型权重大小冒充完整部署成本。
+
+### 设备与应用感知路由
+
+启动和资源状态变化时采集：操作系统、CPU、内存、GPU 类型、总/空闲显存、磁盘空间、电池状态和可用 accelerator。不得为了探测能力上传任何数据。
+
+首次遇到窗口时采集该应用的 UIA/CDP 覆盖率；后续从 `computer.state.metrics` 更新每条策略的成功率、P50/P95、资源占用和失败类型。路由评分至少考虑：
+
+```text
+预计延迟
++ token/远程费用
++ CPU/GPU/内存压力
++ 隐私与许可证惩罚
++ 历史失败惩罚
++ 动作风险惩罚
+```
+
+典型动态路径：
+
+```text
+已有 shortcut / 已验证记忆
+→ 可用且可靠的 UIA/CDP
+→ OmniParser 轻量区域检测
+→ 仅对候选区域执行 OCR 或 icon caption
+→ 本地/远程结构化视觉兜底
+→ 动作后最小验证
+```
+
+文本目标优先 UIA/OCR，图标或自绘目标优先 visual alias/OmniParser；已命中 shortcut 时不得重新运行整屏识别。显存不足、用户在运行游戏或处于电池供电时，可以只保留 detector，把 caption 降级为局部远程视觉或延迟按需加载。
+
+### 当前 OmniParser 证据
+
+- RTX 5070 Laptop、148 x 823 QQ 侧栏截图：OmniParser v2 detector 热路径 P50 约 12.8 ms；14 个区域批量 caption P50 约 155.6 ms、P95 约 163.6 ms。
+- detector 命中蓝色联系人图标，caption 返回通用语义 `Person`，不能单独替代 UIA/OCR 或应用作用域 alias。
+- caption 峰值显存约 961 MB；CUDA/PyTorch 独立环境约 3.01 GB，检测和 caption 权重合计约 1.12 GB，完整可选安装预算按至少 4–5 GB 展示。
+- 详细方法和重跑命令见 `docs/omniparser-benchmark.md`；模型、虚拟环境、截图和结果 JSON 均留在 `.data`，不进入仓库。
+
+### 实施与验收顺序
+
+1. 完成 Tauri 2 + Node sidecar spike，验证主窗口、托盘、单实例锁、进程回收、Streamable HTTP、stdio shim、安装包和 Windows 登录自启动开关。
+2. 定义桌面应用配置、agent/provider profile、组件 manifest、设备能力、策略预设、能力组合图和按应用覆盖的 schema，并提供迁移、回滚和默认值测试。
+3. 把现有 MCP runtime 拆成可常驻核心与隔离 worker，增加健康检查、共享 endpoint、连接令牌、崩溃限次重启和多宿主复用。
+4. 实现 `agent.run/status/cancel/capabilities` 快速执行层、任务预算、`needs_reasoning` 交还协议和紧凑结果，使外部 Agent 可以一次调用完成简单操作。
+5. 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。
+6. 实现 Provider/key 管理、快速 Agent 任务界面和受控 WebView2 profile，使桌面软件在没有外部 MCP 宿主时也能执行简单任务。
+7. 实现受限 PTC runner、临时工作区、工具调用预算和统一风险确认；随后实现声明 capability 的 JavaScript/PowerShell/可选 Python 脚本 runner。
+8. 实现组件管理服务：空间预检、下载、断点续传、哈希校验、原子激活、失败回滚、更新和卸载。
+9. 实现桌面配置中心的概览、组件、应用、任务、网页、PTC、脚本、Provider、测试与成本、连接页面；所有动作调用同一受限后端 API，CLI 继续可用。
+10. 实现资源监视和本地成本路由器，将 UIA/CDP、OCR、OmniParser detector/caption、结构化视觉接入统一 UI 节点索引。
+11. 实现 visual alias：将 `Person` 等通用 caption 与 QQ `联系人` 等窗口作用域名称关联；只有动作验证成功后才提高别名权重。
+12. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
+13. 在办公集显设备、8 GB 游戏本和无 GPU VM 上分别运行真实 benchmark，对比高层 `agent.run`、带干预调用与逐步 MCP 调用的外部往返、输入输出 token、成功率和 P95，再确定自动模式阈值。
+
+验收要求：用户安装并打开软件后无需外部 MCP 宿主，也无需编辑源码或模型配置，即可配置 provider、组合能力、打开 agent 专用网页、执行简单自然语言任务和临时 PTC/脚本；外部 Agent 能用一次高层 MCP 调用完成首批简单任务，并比逐步调用显著减少往返和 token；需要时可在不绕过权限链的前提下观察和干预内部执行；未启用内部操作的连接不暴露相关 schema；基础安装体积不因可选模型增加；所有组件可从同一界面完整安装和卸载；自动模式能解释每次降级原因；多个宿主连接时只运行一份重型模型；模型不可用时 UIA/CDP、shortcut 和基础 MCP 仍可运行；PTC/脚本不能绕过权限和确认链；任何 API key、截图和用户输入不得出现在组件日志或配置界面诊断导出中。
+
 ## 下一阶段
 
-1. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
-2. Edge 独立实例 benchmark 已完成，并支持 setup/teardown 与 warm-path 独立计时。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
-3. 微信、QQ 与 Minecraft 均提供独立实例启动说明和专用 smoke suite；待用户提供独立实例后采集真实自绘界面结果，不承诺操作用户当前前台已登录实例。
-4. 用真实 provider benchmark 流式 tool-call 早调度收益；默认本地 action-ID 分类器和可插拔接口已完成，后续用真实任务 benchmark 调整阈值，并与小型本地分类模型比较。
-5. 本机真实 runtime benchmark 已达到 shortcut P95 小于 100ms、UIA/CDP P95 小于 300ms、本地 OCR P95 小于 800ms；冷启动数据独立统计。继续在其他硬件和独立 Minecraft/微信实例上采样，防止把单机 fixture 数据推广为所有应用保证。
+1. 优先完成独立 Windows 桌面应用 spike、常驻 MCP runtime、stdio shim、`agent.run` 快速执行层和能力组合 schema；随后实现设备探测、动态成本路由及统一配置中心，基础安装继续保持无模型依赖。
+2. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
+3. Edge 独立实例 benchmark 已完成，并支持 setup/teardown 与 warm-path 独立计时。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
+4. 微信、QQ 与 Minecraft 均提供独立实例启动说明和专用 smoke suite；待用户提供独立实例后采集真实自绘界面结果，不承诺操作用户当前前台已登录实例。
+5. 用真实 provider benchmark 流式 tool-call 早调度收益；默认本地 action-ID 分类器和可插拔接口已完成，后续用真实任务 benchmark 调整阈值，并与小型本地分类模型比较。
+6. 本机真实 runtime benchmark 已达到 shortcut P95 小于 100ms、UIA/CDP P95 小于 300ms、本地 OCR P95 小于 800ms；冷启动数据独立统计。继续在其他硬件和独立 Minecraft/微信实例上采样，防止把单机 fixture 数据推广为所有应用保证。
    - Provider benchmark 工具已完成，可比较标准/流式 native tool call 的成功率、P50/P95、首调用延迟、token 和费用；真实排名等待用户通过环境变量配置候选 provider，不读取受保护 key 文件。
-6. 发布：已于 2026-08-14 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`，已添加 `dsh-plugin` 和 `deepseek-harness` topic。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
+7. 发布：已于 2026-08-14 发布至 `https://github.com/Ethanout/computer-use-plus`，公开仓库默认分支为 `main`，已添加 `dsh-plugin` 和 `deepseek-harness` topic。发布前已排除 `.data`、密钥、profile 和媒体文件；后续变更继续执行同一审计。
 
 ## DeepSeek Harness 使用方式
 
