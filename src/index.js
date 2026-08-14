@@ -7,12 +7,24 @@ const { SERVER_INFO, toolsForProfile, canonicalToolName, result, error, toolResu
 
 const toolProfile = process.env.COMPUTER_USE_PLUS_TOOL_PROFILE || '';
 const engine = new ComputerEngine();
-const agentRuntime = new AgentRuntime(engine, { internalEnabled: toolProfile.toLowerCase() === 'intervention-agent' });
+const agentRuntime = new AgentRuntime(engine, {
+  internalEnabled: toolProfile.toLowerCase() === 'intervention-agent',
+  allowedWindows: parseAllowedWindows(process.env.COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS)
+});
 const tools = toolsForProfile(toolProfile);
 const allowedToolNames = new Set(tools.map((tool) => tool.name));
 const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 const pending = new Set();
 let shuttingDown = false;
+
+function parseAllowedWindows(value) {
+  if (!value) return [];
+  let parsed;
+  try { parsed = JSON.parse(value); }
+  catch { throw new Error('COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS must be valid JSON'); }
+  if (!Array.isArray(parsed)) throw new Error('COMPUTER_USE_PLUS_AGENT_ALLOWED_WINDOWS must be a JSON array');
+  return parsed;
+}
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);

@@ -435,7 +435,7 @@ class ComputerEngine {
       const execution = await this.invokeGuarded(
         { type: 'shortcut', window: args.window, windowKey: localWindowKey, name: localShortcut.name, params: args.params || {} },
         args.confirm_token,
-        { signal: args.signal, maxActions: args.maxActions }
+        { signal: args.signal, maxActions: args.maxActions, beforeAction: args.beforeAction }
       );
       return { ok: execution.ok, source: routed.source === 'classifier' ? 'local-classifier' : 'local-shortcut', shortcut: localShortcut.name, execution, ...(routed.confidence ? { confidence: routed.confidence } : {}) };
     }
@@ -456,7 +456,7 @@ class ComputerEngine {
             if (earlyExecutionPromise) return earlyExecutionPromise;
             streamDispatchLatencyMs = Date.now() - startedAt;
             throwIfAborted(args.signal);
-            earlyExecutionPromise = this.invokeToolCall(toolCall, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
+            earlyExecutionPromise = this.invokeToolCall(toolCall, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token, beforeAction: args.beforeAction });
             return earlyExecutionPromise;
           }
         });
@@ -474,7 +474,7 @@ class ComputerEngine {
           };
         }
         throwIfAborted(args.signal);
-        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
+        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token, beforeAction: args.beforeAction });
         return { ok: execution.ok, source: 'fast-ai-tool-call-stream-fallback', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
@@ -485,7 +485,7 @@ class ComputerEngine {
         const call = await this.fastAi.planToolCall({ goal: args.goal, window: args.window, snapshot, params, maxActions: args.maxActions || 20 });
         this.recordModelUsage(call.usage);
         throwIfAborted(args.signal);
-        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token });
+        const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token, beforeAction: args.beforeAction });
         return { ok: execution.ok, source: 'fast-ai-tool-call', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
@@ -498,7 +498,11 @@ class ComputerEngine {
     throwIfAborted(args.signal);
     const actions = MemoryStore.interpolate(templatedActions, params);
     if (actions.length > Number(args.maxActions || 20)) throw new Error('task_action_budget_exceeded');
-    const execution = await this.act({ window: args.window, actions, signal: args.signal });
+    const execution = await this.invokeGuarded(
+      { type: 'actions', window: args.window, actions },
+      args.confirm_token,
+      { signal: args.signal, maxActions: args.maxActions, beforeAction: args.beforeAction }
+    );
     return { ok: execution.ok, source: 'fast-ai', model: plan.model, plannedActions: templatedActions, execution, ...(plan.usage ? { usage: plan.usage } : {}) };
   }
 
@@ -552,7 +556,14 @@ class ComputerEngine {
     // action result verifies this replay; reserve full UI-tree observation for
     // learning, recovery, and ordinary actions so hot shortcuts stay hot.
     throwIfAborted(context.signal);
-    const execution = await this.act({ window: operation.window, windowKey: operation.windowKey, actions, observe: operation.type !== 'shortcut', signal: context.signal });
+    const execution = await this.act({
+      window: operation.window,
+      windowKey: operation.windowKey,
+      actions,
+      observe: operation.type !== 'shortcut',
+      signal: context.signal,
+      beforeAction: context.beforeAction
+    });
     if (operation.type === 'shortcut') this.metrics.shortcutHits += 1;
     return { ok: execution.ok, ...(operation.type === 'shortcut' ? { shortcut: operation.name } : {}), execution };
   }
@@ -845,9 +856,27 @@ class ComputerEngine {
       if (!this.isolated) await sleep(100);
     }
     try {
-      for (const action of args.actions) {
+      for (let index = 0; index < args.actions.length; index += 1) {
         throwIfAborted(args.signal);
-        const resolvedAction = this.resolveActionRefs(args.window, action);
+        let resolvedAction = this.resolveActionRefs(args.window, args.actions[index]);
+        if (typeof args.beforeAction === 'function') {
+          const decision = await args.beforeAction({
+            window: String(args.window),
+            index,
+            total: args.actions.length,
+            action: resolvedAction,
+            signal: args.signal
+          });
+          throwIfAborted(args.signal);
+          if (decision?.skip === true) {
+            results.push({ ok: true, strategy: 'intervention.skip', changed: [] });
+            continue;
+          }
+          if (decision?.action) {
+            this.validateActionBatch([decision.action]);
+            resolvedAction = this.resolveActionRefs(args.window, decision.action);
+          }
+        }
         const result = await this.executeAction(args.window, resolvedAction, windowKey, args.signal);
         results.push(result);
         if (result.ok === false) throw Object.assign(new Error(result.reason || 'action_failed'), { actionResult: result });
