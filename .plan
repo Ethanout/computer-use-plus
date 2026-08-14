@@ -75,7 +75,9 @@
 
 ### 独立桌面应用与统一配置中心
 
-首版采用 Tauri 2 构建 Windows 桌面壳，复用系统 WebView2 渲染界面，并将现有 Node MCP runtime 打包为受管理 sidecar。选择 Tauri 而不是 Electron，是为了降低安装体积、常驻内存和冷启动开销；在实施前用最小 spike 验证 sidecar 生命周期、签名、更新和 WebView2 可用性，若不满足稳定性要求再评估原生 .NET 壳。
+GUI 是最终产品形态，但不是当前开发阶段。现阶段先通过 CLI、MCP 和本机受限管理 API 完成并稳定全部核心能力；在功能、协议、性能、安全和恢复机制达到下述质量门槛后，才开始桌面界面开发。GUI 不得反向驱动尚未稳定的底层接口设计。
+
+后续 GUI 阶段采用 Tauri 2 构建 Windows 桌面壳，复用系统 WebView2 渲染界面，并将已经稳定的 Node MCP runtime 打包为受管理 sidecar。选择 Tauri 而不是 Electron，是为了降低安装体积、常驻内存和冷启动开销；正式实施前用最小 spike 验证 sidecar 生命周期、签名、更新和 WebView2 可用性，若不满足稳定性要求再评估原生 .NET 壳。
 
 应用包含主窗口和系统托盘。关闭主窗口默认最小化到托盘；退出应用时让用户选择停止后台服务或继续保持 MCP 服务。系统登录时自动启动应用是可选设置，首次安装默认关闭，不得未经用户同意创建自启动项。
 
@@ -329,25 +331,48 @@ PTC runner 直接消费内部结构化事件，不把每一步结果重新发送
 
 ### 实施与验收顺序
 
-1. 完成 Tauri 2 + Node sidecar spike，验证主窗口、托盘、单实例锁、进程回收、Streamable HTTP、stdio shim、安装包和 Windows 登录自启动开关。
-2. 定义桌面应用配置、agent/provider profile、组件 manifest、设备能力、策略预设、能力组合图和按应用覆盖的 schema，并提供迁移、回滚和默认值测试。
-3. 把现有 MCP runtime 拆成可常驻核心与隔离 worker，增加健康检查、共享 endpoint、连接令牌、崩溃限次重启和多宿主复用。
-4. 实现 `agent.run/status/cancel/capabilities` 快速执行层、任务预算、`needs_reasoning` 交还协议和紧凑结果，使外部 Agent 可以一次调用完成简单操作。
-5. 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。
-6. 实现 Provider/key 管理、快速 Agent 任务界面和受控 WebView2 profile，使桌面软件在没有外部 MCP 宿主时也能执行简单任务。
-7. 实现受限 PTC runner、临时工作区、工具调用预算和统一风险确认；随后实现声明 capability 的 JavaScript/PowerShell/可选 Python 脚本 runner。
-8. 实现组件管理服务：空间预检、下载、断点续传、哈希校验、原子激活、失败回滚、更新和卸载。
-9. 实现桌面配置中心的概览、组件、应用、任务、网页、PTC、脚本、Provider、测试与成本、连接页面；所有动作调用同一受限后端 API，CLI 继续可用。
-10. 实现资源监视和本地成本路由器，将 UIA/CDP、OCR、OmniParser detector/caption、结构化视觉接入统一 UI 节点索引。
-11. 实现 visual alias：将 `Person` 等通用 caption 与 QQ `联系人` 等窗口作用域名称关联；只有动作验证成功后才提高别名权重。
-12. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
-13. 在办公集显设备、8 GB 游戏本和无 GPU VM 上分别运行真实 benchmark，对比高层 `agent.run`、带干预调用与逐步 MCP 调用的外部往返、输入输出 token、成功率和 P95，再确定自动模式阈值。
+当前阶段不开发 GUI，按以下顺序完成 headless 核心：
+
+1. 冻结 agent/provider profile、组件 manifest、设备能力、策略预设、能力组合图、按应用覆盖、任务和权限 schema；所有配置先提供 CLI 和本机受限管理 API，并覆盖迁移、回滚和默认值测试。
+2. 把现有 MCP runtime 拆成可常驻核心与隔离 worker，实现 Streamable HTTP、stdio shim、健康检查、共享 endpoint、连接令牌、崩溃限次重启、版本匹配和多宿主复用。
+3. 实现 `agent.run/status/cancel/capabilities` 快速执行层、任务预算、`needs_reasoning` 交还协议和紧凑结果，使外部 Agent 可以一次调用完成简单操作。
+4. 实现按连接授权的高层/可观察/可干预模式和 `agent.internal`，包括暂停点、revision 并发控制、任务作用域权限和干预审计。
+5. 实现 Provider/key 管理 CLI/API、连接测试、价格和 token 统计；快速 provider 未配置时所有确定性、本地识别和 shortcut 能力仍可运行。
+6. 实现受限 PTC runner、临时工作区、工具调用预算和统一风险确认；随后实现声明 capability 的 JavaScript/PowerShell/可选 Python 脚本 runner。
+7. 实现组件管理服务和 CLI/API：空间预检、下载、断点续传、哈希校验、原子激活、失败回滚、更新和卸载。
+8. 实现设备资源监视和本地成本路由器，将 shortcut/记忆、UIA/CDP、OCR、OmniParser detector/caption、结构化视觉接入统一 UI 节点索引。
+9. 实现 visual alias：将 `Person` 等通用 caption 与 QQ `联系人` 等窗口作用域名称关联；只有动作验证成功后才提高别名权重。
+10. 完成受管理浏览器 profile、网页任务、独立登录状态、CDP、下载目录和站点权限的 headless API；暂不实现 GUI 标签页。
+11. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
+12. 在办公集显设备、8 GB 游戏本和无 GPU VM 上分别运行真实 benchmark，对比高层 `agent.run`、带干预调用与逐步 MCP 调用的外部往返、输入输出 token、成功率和 P95，并根据结果调整自动模式阈值。
+
+只有通过“GUI 开工质量门槛”后，才进入桌面阶段：
+
+13. 完成 Tauri 2 + 稳定 runtime sidecar spike，验证主窗口、托盘、单实例锁、进程回收、安装包、更新、签名和 Windows 登录自启动开关。
+14. 实现桌面配置中心的概览、组件、应用、任务、网页、PTC、脚本、Provider、测试与成本、连接页面；GUI 只能调用已经冻结并有集成测试的管理 API。
+15. 进行键盘可访问性、DPI、多显示器、窗口缩放、错误恢复、安装/升级/卸载和用户体验验收，不在 GUI 层复制 runtime 业务逻辑。
+
+### GUI 开工质量门槛
+
+“所有功能做好、没有问题和丝滑”转换为以下可验证门槛；未达标时继续修复 headless 核心，不开始正式 GUI：
+
+- 所有单元、集成、协议、权限和真实执行测试连续三轮通过，无已知 P0/P1 缺陷。
+- MCP 核心连续运行 24 小时；重复执行 1,000 个无副作用任务后无失控进程、句柄持续增长、不可回收截图或明显内存泄漏。
+- shortcut 热路径 P95 小于 100 ms，UIA/CDP P95 小于 300 ms，Omni detector 热路径 P95 小于 50 ms，本地 OCR P95 小于 800 ms；冷启动和模型加载单独统计。
+- 首批 `agent.run` 简单任务在支持的应用和硬件矩阵中成功率至少 95%，通常只需一次外部 MCP 往返；失败必须返回可操作的 `needs_reasoning`，不得静默误点。
+- 高层、可观察、可干预三种模式通过并发和 revision 冲突测试；外部干预不能绕过风险确认、窗口作用域和预算。
+- 独立执行桌面、前台兼容模式、多显示器和 DPI 缩放均通过真实测试；默认模式不抢焦点、不移动鼠标、不干扰用户输入。
+- provider 超时、模型崩溃、OCR/视觉不可用、显存不足和网络断开均能有界降级；MCP 核心与 shortcut/UIA 不随重型 worker 一起退出。
+- PTC/脚本经过超时、无限循环、进程树回收、文件/网络/进程越权和高风险动作测试，没有权限绕过。
+- 组件安装、更新、回滚、卸载和哈希失败流程可重复，基础安装不隐式下载模型，卸载后不残留失管 worker。
+- API key、截图、用户输入和敏感路径不进入日志、指标、MCP 响应或诊断导出；安全测试和人工审计通过。
+- CLI、stdio、Streamable HTTP 和管理 API 文档完整，schema 冻结并带版本号；GUI 开发期间不需要修改核心协议才能完成主要页面。
 
 验收要求：用户安装并打开软件后无需外部 MCP 宿主，也无需编辑源码或模型配置，即可配置 provider、组合能力、打开 agent 专用网页、执行简单自然语言任务和临时 PTC/脚本；外部 Agent 能用一次高层 MCP 调用完成首批简单任务，并比逐步调用显著减少往返和 token；需要时可在不绕过权限链的前提下观察和干预内部执行；未启用内部操作的连接不暴露相关 schema；基础安装体积不因可选模型增加；所有组件可从同一界面完整安装和卸载；自动模式能解释每次降级原因；多个宿主连接时只运行一份重型模型；模型不可用时 UIA/CDP、shortcut 和基础 MCP 仍可运行；PTC/脚本不能绕过权限和确认链；任何 API key、截图和用户输入不得出现在组件日志或配置界面诊断导出中。
 
 ## 下一阶段
 
-1. 优先完成独立 Windows 桌面应用 spike、常驻 MCP runtime、stdio shim、`agent.run` 快速执行层和能力组合 schema；随后实现设备探测、动态成本路由及统一配置中心，基础安装继续保持无模型依赖。
+1. 暂不开发 GUI。优先完成并稳定常驻 MCP runtime、stdio shim、`agent.run` 快速执行层、`agent.internal`、能力组合 schema、PTC/脚本、组件管理、设备探测和动态成本路由；通过 GUI 开工质量门槛后再实施 Tauri 桌面应用。
 2. DeepSeek Harness adapter、真实 Host discovery 和可重复验证脚本已完成；后续跟随其 developer preview 的破坏性变更做版本兼容回归。
 3. Edge 独立实例 benchmark 已完成，并支持 setup/teardown 与 warm-path 独立计时。Minecraft 与微信 suite 已升级为真实启动/等待窗口/UI 读取/诊断流程，但当前未配置 `COMPUTER_USE_PLUS_MINECRAFT_COMMAND`、`COMPUTER_USE_PLUS_MINECRAFT_WINDOW_PROCESS`、`COMPUTER_USE_PLUS_WECHAT_COMMAND`、`COMPUTER_USE_PLUS_WECHAT_WINDOW_PROCESS`，因此不伪造真实结果，也不控制用户当前实例。
 4. 微信、QQ 与 Minecraft 均提供独立实例启动说明和专用 smoke suite；待用户提供独立实例后采集真实自绘界面结果，不承诺操作用户当前前台已登录实例。
