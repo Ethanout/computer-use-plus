@@ -23,6 +23,7 @@ const { ComponentWorkerManager } = require('./component-worker-manager');
 const { ResourceRouter } = require('./resource-router');
 const { VisualAliasStore } = require('./visual-alias');
 const { ProviderWorkerClient } = require('./provider-worker-client');
+const { OmniParserComponentClient, VisionCascadeClient } = require('./omniparser-component');
 
 function sleep(ms, signal = null) {
   if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
@@ -88,7 +89,11 @@ class ComputerEngine {
     this.providerRevision = this.providerConfig.read().revision;
     this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
     this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
-    this.vision = options.vision || new StructuredVisionClient();
+    if (options.vision) this.vision = options.vision;
+    else {
+      this.componentVision = options.componentVision || new OmniParserComponentClient(this.components, this.componentWorkers, { allowedRoots: [this.dataDir, this.execution.dataDir || this.dataDir] });
+      this.vision = new VisionCascadeClient([this.componentVision, new StructuredVisionClient()]);
+    }
     this.browserLauncher = options.browserLauncher || null;
     this.browserDriver = options.browserDriver || null;
     this.snapshotRefs = new Map();
@@ -329,7 +334,7 @@ class ComputerEngine {
       const root = path.resolve(this.execution.dataDir || '.data');
       if (!imagePath.startsWith(`${root}${path.sep}`)) throw new Error('execution_capture_path_invalid');
       this.recordCapture(imagePath);
-      const layout = await this.vision.inspectImage(imagePath, capture.bounds || window.bounds, { query });
+      const layout = await this.vision.inspectImage(imagePath, capture.bounds || window.bounds, { query, windowId });
       return layout.windows.flatMap((item) => item.nodes || [])
         .filter((node) => !query.text || String(node.text || '').toLocaleLowerCase().includes(String(query.text).toLocaleLowerCase()))
         .map((node) => ({ name: node.text || '', text: node.text || '', role: node.role, bounds: node.bounds, confidence: node.confidence, source: 'vision' }));

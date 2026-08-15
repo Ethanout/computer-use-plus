@@ -9,6 +9,8 @@ class WorkerSupervisor {
     this.cwd = options.cwd;
     this.env = options.env ? { ...process.env, ...options.env } : process.env;
     this.protocolVersion = String(options.protocolVersion || '1');
+    this.transport = options.transport === 'stdio' ? 'stdio' : 'ipc';
+    this.maxMessageBytes = bounded(options.maxMessageBytes, 1024, 16 * 1024 * 1024, 1024 * 1024);
     this.maxRestarts = bounded(options.maxRestarts, 0, 20, 3);
     this.restartWindowMs = bounded(options.restartWindowMs, 1000, 24 * 60 * 60 * 1000, 60 * 1000);
     this.startTimeoutMs = bounded(options.startTimeoutMs, 100, 120000, 10000);
@@ -30,7 +32,8 @@ class WorkerSupervisor {
     if (this.startPromise) return this.startPromise;
     this.stopping = false;
     this.startPromise = new Promise((resolve, reject) => {
-      const child = spawn(this.command, this.args, { cwd: this.cwd, env: this.env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
+      const stdio = this.transport === 'stdio' ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'ignore', 'ignore', 'ipc'];
+      const child = spawn(this.command, this.args, { cwd: this.cwd, env: this.env, stdio, windowsHide: true });
       this.child = child;
       let settled = false;
       const timer = setTimeout(() => {
@@ -45,7 +48,7 @@ class WorkerSupervisor {
         this.lastError = error.message === 'spawn UNKNOWN' ? 'worker_spawn_failed' : 'worker_spawn_failed';
         if (!settled) { settled = true; clearTimeout(timer); reject(new Error(this.lastError)); }
       });
-      child.on('message', (message) => {
+      const handleMessage = (message) => {
         if (message?.type === 'response' && message.id) {
           const pending = this.pending.get(String(message.id));
           if (pending) { this.pending.delete(String(message.id)); clearTimeout(pending.timer); if (message.error) pending.reject(new Error(String(message.error))); else pending.resolve(message.result); }
@@ -62,7 +65,29 @@ class WorkerSupervisor {
         this.workerStatus = message.status && typeof message.status === 'object' ? { ...message.status } : null;
         this.lastError = null;
         if (!settled) { settled = true; clearTimeout(timer); resolve(this.status()); }
-      });
+      };
+      if (this.transport === 'stdio') {
+        let buffer = '';
+        child.stderr.resume();
+        child.stdout.setEncoding('utf8');
+        child.stdout.on('data', (chunk) => {
+          buffer += chunk;
+          if (Buffer.byteLength(buffer, 'utf8') > this.maxMessageBytes) {
+            this.lastError = 'worker_message_too_large';
+            buffer = '';
+            child.kill();
+            return;
+          }
+          let newline;
+          while ((newline = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, newline).trim();
+            buffer = buffer.slice(newline + 1);
+            if (!line) continue;
+            try { handleMessage(JSON.parse(line)); }
+            catch (_) { this.lastError = 'worker_message_invalid'; }
+          }
+        });
+      } else child.on('message', handleMessage);
       child.on('exit', (code, signal) => {
         const expected = this.stopping;
         this.child = null;
@@ -83,7 +108,7 @@ class WorkerSupervisor {
 
   async send(message) {
     if (!this.started || !this.child) throw new Error('worker_not_ready');
-    await new Promise((resolve, reject) => this.child.send(message, (error) => error ? reject(new Error('worker_send_failed')) : resolve()));
+    await this.writeMessage(message);
   }
 
   async request(payload, options = {}) {
@@ -93,8 +118,22 @@ class WorkerSupervisor {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error('worker_request_timeout')); }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      this.child.send({ type: 'request', id, payload }, (error) => { if (error) { clearTimeout(timer); this.pending.delete(id); reject(new Error('worker_send_failed')); } });
+      this.writeMessage({ type: 'request', id, payload }).catch(() => {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new Error('worker_send_failed'));
+      });
     });
+  }
+
+  writeMessage(message) {
+    if (!this.child) return Promise.reject(new Error('worker_not_ready'));
+    if (this.transport === 'stdio') {
+      const encoded = `${JSON.stringify(message)}\n`;
+      if (Buffer.byteLength(encoded, 'utf8') > this.maxMessageBytes) return Promise.reject(new Error('worker_message_too_large'));
+      return new Promise((resolve, reject) => this.child.stdin.write(encoded, (error) => error ? reject(new Error('worker_send_failed')) : resolve()));
+    }
+    return new Promise((resolve, reject) => this.child.send(message, (error) => error ? reject(new Error('worker_send_failed')) : resolve()));
   }
 
   scheduleRestart() {
@@ -119,6 +158,7 @@ class WorkerSupervisor {
       running: Boolean(this.started && this.child),
       pid: this.child?.pid || null,
       protocolVersion: this.protocolVersion,
+      transport: this.transport,
       restartCount: this.restartCount,
       maxRestarts: this.maxRestarts,
       lastError: this.lastError,

@@ -36,7 +36,28 @@ OmniParser 适合作为“无 UIA 节点时的视觉候选层”，并支持模�
 
 ## 接入组件 worker
 
-该 benchmark 只验证本地 Python/CUDA 模型，不会自动把模型加载进 MCP。生产接入应将 Python 环境、权重和 worker 入口作为一个经过 SHA-256 校验的 component manifest 安装，再声明 `runtime.entrypoint`。`ComponentWorkerManager` 负责启动、请求、超时、重启和卸载回收；组件 worker 仍必须把截图解析限制在本地，并通过上层引擎的 UIA/OCR/风险链返回候选，不能直接执行电脑动作。
+该 benchmark 只验证本地 Python/CUDA 模型，不会自动下载模型。生产运行链已经接入 MCP：激活声明 `omniparser-detector` 的 component manifest 后，Engine 会按需启动组件 worker，并在 UIA/OCR 无法定位时把执行目录中的临时截图交给它。组件可使用 Node IPC，也可声明 `runtime.transport: "stdio"`，以逐行 JSON 协议接入 Python 或独立可执行模型进程。
+
+worker ready 消息：
+
+```json
+{"type":"ready","protocolVersion":"1","status":{"backend":"omniparser"}}
+```
+
+请求 payload 的 `action` 为 `inspect`，包含本地图片路径、实际字节数、窗口屏幕边界、最大节点数、是否启用 caption 和只含 `text/role` 的紧凑 query。响应必须是：
+
+```json
+{
+  "version": 1,
+  "coordinateSpace": "image",
+  "image": {"width": 148, "height": 823},
+  "nodes": [
+    {"id":"n1","role":"button","caption":"Person","bbox":[10,20,40,60],"confidence":0.9}
+  ]
+}
+```
+
+`coordinateSpace` 支持 `image`、`normalized` 或 `screen`。适配器会限制截图路径和大小、校验节点/置信度、将坐标换算为屏幕坐标，并交回现有匹配、点击、验证和风险链；worker 没有直接执行电脑动作的接口。实际 Python/CUDA 环境与权重仍需作为经过 SHA-256 校验的自包含组件发布和做设备兼容验收，基础安装不会携带它们。
 
 ## 重跑
 

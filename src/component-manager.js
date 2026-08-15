@@ -38,6 +38,17 @@ class ComponentManager {
     return manifest ? { ...manifest, versionDir: path.join(this.rootDir, safeId, version) } : null;
   }
 
+  activeManifestByCapability(capability) {
+    const expected = String(capability || '');
+    if (!expected) return null;
+    const index = readJson(path.join(this.rootDir, 'active.json'), { active: {} });
+    for (const id of Object.keys(index.active || {}).sort()) {
+      const manifest = this.activeManifest(id);
+      if (Array.isArray(manifest?.capabilities) && manifest.capabilities.map(String).includes(expected)) return manifest;
+    }
+    return null;
+  }
+
   async install(manifest, options = {}) {
     const item = normalizeManifest(manifest);
     if (item.size > this.maxDownloadBytes) throw new Error('component_size_limit_exceeded');
@@ -109,7 +120,9 @@ function normalizeRuntime(value) {
   if (args.some((arg) => arg.length > 400)) throw new Error('component_runtime_arg_invalid');
   const command = value.command ? String(value.command) : '';
   if (command.length > 260 || /[\r\n]/.test(command)) throw new Error('component_runtime_command_invalid');
-  return { command, entrypoint, args, protocolVersion: String(value.protocolVersion || '1').slice(0, 20) };
+  const transport = value.transport === undefined ? 'ipc' : String(value.transport);
+  if (!['ipc', 'stdio'].includes(transport)) throw new Error('component_runtime_transport_invalid');
+  return { command, entrypoint, args, protocolVersion: String(value.protocolVersion || '1').slice(0, 20), transport };
 }
 function safeRelativePath(value) {
   const item = String(value || '').trim();

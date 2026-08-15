@@ -33,6 +33,7 @@ class ComponentWorkerManager {
       args: [entrypoint, ...manifest.runtime.args],
       cwd: manifest.versionDir,
       protocolVersion: manifest.runtime.protocolVersion,
+      transport: manifest.runtime.transport,
       maxRestarts: 3
     });
     this.workers.set(manifest.id, worker);
