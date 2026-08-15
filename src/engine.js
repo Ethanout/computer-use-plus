@@ -46,6 +46,10 @@ function throwIfAborted(signal) {
 
 function ensureDataDir(dataDir) { fs.mkdirSync(dataDir, { recursive: true }); }
 
+function isRecoverableProviderError(error) {
+  return /^(?:provider_|tool_call_|fast_ai_)/.test(String(error?.message || ''));
+}
+
 const ACTIONABLE_ROLES = new Set([
   'button', 'edit', 'textbox', 'checkbox', 'radio', 'hyperlink', 'link',
   'menuitem', 'tab', 'combobox', 'listitem', 'slider', 'spinner', 'treeitem'
@@ -426,14 +430,17 @@ class ComputerEngine {
   }
 
   async manageBrowser(args = {}) {
-    if (args.action === 'status') return { configured: Boolean(this.browserDriver), launcher: this.browserLauncher ? { pid: this.browserLauncher.child?.pid || null, port: this.browserLauncher.port, profileDir: this.browserLauncher.profileDir } : null };
+    if (args.action === 'status') return { configured: Boolean(this.browserDriver), launcher: this.browserLauncher ? { pid: this.browserLauncher.child?.pid || null, port: this.browserLauncher.port, profileDir: this.browserLauncher.profileDir, ...(this.browserLauncher.downloadDir ? { downloadDir: this.browserLauncher.downloadDir } : {}) } : null };
     if (args.action === 'launch') {
       if (process.platform === 'win32' && !this.isolated) throw new Error('browser_requires_isolated_execution');
       if (!this.browserLauncher) {
         const root = path.resolve(this.execution.dataDir || path.resolve('.data'));
         const profileDir = path.resolve(args.profileDir || path.join(root, 'browser-profile'));
         if (!profileDir.startsWith(`${root}${path.sep}`)) throw new Error('browser_profile_must_be_project_data');
-        this.browserLauncher = new BrowserCdpLauncher({ executable: args.executable, profileDir, port: args.port || 9222, execution: this.isolated ? this.execution : null });
+        const downloadDir = args.downloadDir ? path.resolve(args.downloadDir) : path.join(profileDir, 'downloads');
+        if (!downloadDir.startsWith(`${root}${path.sep}`)) throw new Error('browser_download_dir_must_be_project_data');
+        fs.mkdirSync(downloadDir, { recursive: true });
+        this.browserLauncher = new BrowserCdpLauncher({ executable: args.executable, profileDir, downloadDir, port: args.port || 9222, execution: this.isolated ? this.execution : null });
       }
       const launched = await this.browserLauncher.launch(args.url || 'about:blank');
       this.browserDriver = this.browserDriver || new CdpDriver({ endpoint: `http://127.0.0.1:${this.browserLauncher.port}`, dataDir: this.execution.dataDir || path.resolve('.data') });
@@ -525,6 +532,7 @@ class ComputerEngine {
         const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token, beforeAction: args.beforeAction });
         return { ok: execution.ok, source: 'fast-ai-tool-call-stream-fallback', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
+        if (this.providerWorker && isRecoverableProviderError(error)) return { ok: false, reason: 'needs_reasoning', detail: 'provider_unavailable' };
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
       }
     }
@@ -536,10 +544,16 @@ class ComputerEngine {
         const execution = await this.invokeToolCall(call, { defaultWindow: args.window, params, signal: args.signal, maxActions: args.maxActions, confirmToken: args.confirm_token, beforeAction: args.beforeAction });
         return { ok: execution.ok, source: 'fast-ai-tool-call', model: call.model, toolCall: { name: call.name }, execution, ...(call.usage ? { usage: call.usage } : {}) };
       } catch (error) {
+        if (this.providerWorker && isRecoverableProviderError(error)) return { ok: false, reason: 'needs_reasoning', detail: 'provider_unavailable' };
         if (!['tool_call_not_returned', 'tool_call_missing', 'tool_call_provider_not_configured'].includes(error.message)) throw error;
       }
     }
-    const plan = await this.fastAi.plan({ goal: args.goal, snapshot, params, maxActions: args.maxActions || 20 });
+    let plan;
+    try { plan = await this.fastAi.plan({ goal: args.goal, snapshot, params, maxActions: args.maxActions || 20 }); }
+    catch (error) {
+      if (this.providerWorker && isRecoverableProviderError(error)) return { ok: false, reason: 'needs_reasoning', detail: 'provider_unavailable' };
+      throw error;
+    }
     this.recordModelUsage(plan.usage);
     if (!plan.actions.length) return { ok: false, reason: 'fast_ai_no_safe_actions', model: plan.model, ...(plan.usage ? { usage: plan.usage } : {}) };
     const templatedActions = plan.actions.map((action) => this.resolveActionRefs(args.window, action));

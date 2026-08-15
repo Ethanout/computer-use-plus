@@ -197,13 +197,13 @@ function SET_VALUE(query, value) {
 }
 
 class BrowserCdpLauncher {
-  constructor(options = {}) { this.executable = options.executable || process.env.COMPUTER_USE_PLUS_BROWSER_EXECUTABLE || ''; this.spawn = options.spawn || spawn; this.execution = options.execution || null; this.child = null; this.profileDir = options.profileDir; this.port = Number(options.port || 9222); }
+  constructor(options = {}) { this.executable = options.executable || process.env.COMPUTER_USE_PLUS_BROWSER_EXECUTABLE || ''; this.spawn = options.spawn || spawn; this.execution = options.execution || null; this.child = null; this.profileDir = options.profileDir; this.downloadDir = options.downloadDir || null; this.port = Number(options.port || 9222); }
   async launch(url = 'about:blank') {
     if (!this.executable) throw new Error('browser_executable_required');
     if (this.child) return { pid: this.child.pid, port: this.port, profileDir: this.profileDir };
     if (!this.profileDir) throw new Error('browser_profile_required');
     fs.mkdirSync(this.profileDir, { recursive: true });
-    const args = [`--user-data-dir=${this.profileDir}`, `--remote-debugging-port=${this.port}`, '--no-first-run', '--no-default-browser-check', '--disable-sync', '--new-window', url];
+    const args = [`--user-data-dir=${this.profileDir}`, `--remote-debugging-port=${this.port}`, '--no-first-run', '--no-default-browser-check', '--disable-sync', ...(this.downloadDir ? [`--download-default-directory=${this.downloadDir}`, '--disable-prompt-for-download'] : []), '--new-window', url];
     if (this.execution) {
       const quote = (value) => /[\s"]/.test(value) ? `"${String(value).replace(/"/g, '\\"')}"` : String(value);
       const launched = await this.execution.launch([quote(this.executable), ...args.map(quote)].join(' '));
@@ -211,6 +211,9 @@ class BrowserCdpLauncher {
       return { pid: launched.pid, port: this.port, profileDir: this.profileDir, desktop: launched.desktop };
     }
     this.child = this.spawn(this.executable, args, { detached: false, windowsHide: true, stdio: 'ignore' });
+    const child = this.child;
+    child.once?.('exit', () => { if (this.child === child) this.child = null; });
+    child.once?.('error', () => { if (this.child === child) this.child = null; });
     return { pid: this.child.pid, port: this.port, profileDir: this.profileDir };
   }
   stop() {
