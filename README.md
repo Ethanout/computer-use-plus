@@ -201,6 +201,8 @@ npm start
 
 worker 也可通过 `new ComputerEngine({ providerWorker: true })` 启用。它支持 ready 握手、协议版本校验、请求超时、崩溃限次重启和关闭时 pending 请求回收。状态只返回 provider 的公开元数据（model、protocol、是否已配置），不会回显 key 或 key 文件路径。
 
+可选组件 manifest 也可以声明受管理的本地 worker：`runtime.entrypoint` 必须是组件版本目录内的相对路径，启动、请求和停止通过 intervention-only 的 `agent.components` 完成。激活新版本或卸载前会先停止旧 worker；没有 runtime 声明的模型组件不会被隐式执行。
+
 本地 action-ID 路由支持注入可选分类器。确定性的名称、ID 和别名匹配始终优先；只有未命中时才调用分类器。分类器只能从当前窗口作用域已有 shortcut 中返回一个 ID，默认置信度阈值为 `0.85`，未知 ID 或低置信度结果会被拒绝并回退到快速 AI/常规观察。`computer.state.metrics` 会记录 `classifierCalls`、`classifierHits` 和 `classifierLatencyMs`。
 
 ## Benchmark

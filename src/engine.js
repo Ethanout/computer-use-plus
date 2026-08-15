@@ -19,6 +19,7 @@ const { ProviderConfigStore } = require('./provider-config');
 const { PtcRunner } = require('./ptc-runner');
 const { ScriptRunner } = require('./script-runner');
 const { ComponentManager } = require('./component-manager');
+const { ComponentWorkerManager } = require('./component-worker-manager');
 const { ResourceRouter } = require('./resource-router');
 const { VisualAliasStore } = require('./visual-alias');
 const { ProviderWorkerClient } = require('./provider-worker-client');
@@ -79,6 +80,7 @@ class ComputerEngine {
     this.ptc = options.ptc || new PtcRunner(this);
     this.scriptRunner = options.scriptRunner || new ScriptRunner(this, { dataDir: this.dataDir });
     this.components = options.components || new ComponentManager({ dataDir: this.dataDir });
+    this.componentWorkers = options.componentWorkers || new ComponentWorkerManager(this.components);
     this.resourceRouter = options.resourceRouter || new ResourceRouter(options.resourceRouterOptions);
     this.visualAliases = options.visualAliases || new VisualAliasStore(path.join(this.dataDir, 'visual-aliases.json'));
     this.providerManaged = !options.fastAi && !useProviderWorker;
@@ -135,6 +137,7 @@ class ComputerEngine {
     if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
     if (this.providerReloadTimer) clearInterval(this.providerReloadTimer);
     if (this.providerWorker && typeof this.fastAi.close === 'function') await this.fastAi.close();
+    await this.componentWorkers?.stopAll?.();
   }
 
   async runMaintenance() {
@@ -620,10 +623,24 @@ class ComputerEngine {
 
   async manageComponents(args = {}) {
     const action = String(args.action || 'list');
-    if (action === 'list') return this.components.list();
-    if (action === 'install') return this.components.install(args.manifest, { fetch: global.fetch });
-    if (action === 'activate') return this.components.activate(args.id, args.version);
-    if (action === 'uninstall') return this.components.uninstall(args.id, args.version);
+    if (action === 'list') return { ...this.components.list(), workers: this.componentWorkers?.status?.() || {} };
+    if (action === 'install') {
+      const previous = this.components.list().active?.[String(args.manifest?.id || '')];
+      if (previous && previous !== String(args.manifest?.version || '')) await this.componentWorkers?.stop?.(args.manifest.id);
+      return this.components.install(args.manifest, { fetch: global.fetch });
+    }
+    if (action === 'activate') {
+      const previous = this.components.list().active?.[String(args.id || '')];
+      if (previous && previous !== String(args.version || '')) await this.componentWorkers?.stop?.(args.id);
+      return this.components.activate(args.id, args.version);
+    }
+    if (action === 'uninstall') {
+      await this.componentWorkers?.stop?.(args.id);
+      return this.components.uninstall(args.id, args.version);
+    }
+    if (action === 'start') return this.componentWorkers.start(args.id);
+    if (action === 'stop') return this.componentWorkers.stop(args.id);
+    if (action === 'request') return this.componentWorkers.request(args.id, args.payload || {}, { timeoutMs: args.timeoutMs });
     throw new Error('component_action_invalid');
   }
 

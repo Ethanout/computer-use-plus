@@ -330,8 +330,8 @@ const COMPONENTS_TOOL = {
   inputSchema: {
     type: 'object', required: ['action'],
     properties: {
-      action: { type: 'string', enum: ['list', 'install', 'activate', 'uninstall'] },
-      id: { type: 'string' }, version: { type: 'string' },
+      action: { type: 'string', enum: ['list', 'install', 'activate', 'uninstall', 'start', 'stop', 'request'] },
+      id: { type: 'string' }, version: { type: 'string' }, timeoutMs: { type: 'integer', minimum: 100, maximum: 120000 }, payload: { type: 'object', additionalProperties: true },
       manifest: { type: 'object', additionalProperties: true }
     }, additionalProperties: false
   }

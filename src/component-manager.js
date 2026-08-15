@@ -29,6 +29,15 @@ class ComponentManager {
     return [...capabilities].sort();
   }
 
+  activeManifest(id) {
+    const safeId = safeName(id);
+    const index = readJson(path.join(this.rootDir, 'active.json'), { active: {} });
+    const version = index.active?.[safeId];
+    if (!version) return null;
+    const manifest = readJson(path.join(this.rootDir, safeId, version, 'manifest.json'), null);
+    return manifest ? { ...manifest, versionDir: path.join(this.rootDir, safeId, version) } : null;
+  }
+
   async install(manifest, options = {}) {
     const item = normalizeManifest(manifest);
     if (item.size > this.maxDownloadBytes) throw new Error('component_size_limit_exceeded');
@@ -91,7 +100,21 @@ function normalizeManifest(value) {
   const size = positiveInt(value.size); const sha256 = String(value.sha256 || '').toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('component_sha256_invalid');
   if (!size) throw new Error('component_size_invalid');
-  return { id, version, url, size, sha256, fileName: safeName(value.fileName || 'payload.bin'), tempBytes: positiveInt(value.tempBytes || size), capabilities: Array.isArray(value.capabilities) ? value.capabilities.map(String).slice(0, 32) : [] };
+  const runtime = value.runtime && typeof value.runtime === 'object' ? normalizeRuntime(value.runtime) : null;
+  return { id, version, url, size, sha256, fileName: safeName(value.fileName || 'payload.bin'), tempBytes: positiveInt(value.tempBytes || size), capabilities: Array.isArray(value.capabilities) ? value.capabilities.map(String).slice(0, 32) : [], ...(runtime ? { runtime } : {}) };
+}
+function normalizeRuntime(value) {
+  const entrypoint = safeRelativePath(value.entrypoint);
+  const args = Array.isArray(value.args) ? value.args.map(String).slice(0, 32) : [];
+  if (args.some((arg) => arg.length > 400)) throw new Error('component_runtime_arg_invalid');
+  const command = String(value.command || process.execPath);
+  if (command.length > 260 || /[\r\n]/.test(command)) throw new Error('component_runtime_command_invalid');
+  return { command, entrypoint, args, protocolVersion: String(value.protocolVersion || '1').slice(0, 20) };
+}
+function safeRelativePath(value) {
+  const item = String(value || '').trim();
+  if (!item || path.isAbsolute(item) || item.includes('..') || /[\r\n]/.test(item)) throw new Error('component_runtime_entrypoint_invalid');
+  return item;
 }
 function safeName(value) { const name = String(value || ''); if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}$/.test(name)) throw new Error('component_name_invalid'); return name; }
 function positiveInt(value) { const n = Number(value); return Number.isSafeInteger(n) && n > 0 ? n : 0; }
@@ -113,4 +136,4 @@ async function downloadResumable(url, file, expectedSize, fetchImpl) {
 }
 function onceDrain(stream) { return new Promise((resolve, reject) => { stream.once('drain', resolve); stream.once('error', reject); }); }
 
-module.exports = { ComponentManager, normalizeManifest, verifySha256, downloadResumable };
+module.exports = { ComponentManager, normalizeManifest, verifySha256, downloadResumable, normalizeRuntime };

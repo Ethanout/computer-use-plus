@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { ComponentManager } = require('../../src/component-manager');
+const { ComponentWorkerManager } = require('../../src/component-worker-manager');
 
 test('component manager installs, activates and uninstalls a verified manifest', async () => {
   const rootDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cup-components-'));
@@ -31,6 +32,21 @@ test('component manager exposes only capabilities from active verified manifests
   const fetchImpl = async () => ({ ok: true, status: 200, body: (async function* () { yield payload; })() });
   await manager.install({ id: 'vision', version: '1', url: 'https://example.test/vision', size: payload.length, sha256, capabilities: ['omniparser-detector', 'caption'] }, { fetch: fetchImpl });
   assert.deepEqual(manager.activeCapabilities(), ['caption', 'omniparser-detector']);
+});
+
+test('component workers start only from active verified runtime manifests and are reclaimed', async () => {
+  const rootDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cup-components-worker-'));
+  const workerSource = Buffer.from("process.send({type:'ready',protocolVersion:'1'}); process.on('message',m=>{if(m.type==='request')process.send({type:'response',id:m.id,result:{ok:true}})});\n");
+  const sha256 = crypto.createHash('sha256').update(workerSource).digest('hex');
+  const manager = new ComponentManager({ rootDir });
+  await manager.install({ id: 'detector', version: '1.0.0', url: 'https://example.invalid/detector.js', fileName: 'worker.js', size: workerSource.length, sha256, capabilities: ['omniparser-detector'], runtime: { entrypoint: 'worker.js' } }, { fetch: async () => ({ ok: true, status: 200, body: (async function* () { yield workerSource; })() }) });
+  const workers = new ComponentWorkerManager(manager);
+  const started = await workers.start('detector');
+  assert.equal(started.ok, true);
+  assert.equal(workers.status().detector.running, true);
+  assert.deepEqual(await workers.request('detector', { hello: true }), { ok: true });
+  assert.equal((await workers.stop('detector')).stopped, true);
+  assert.deepEqual(workers.status(), {});
 });
 
 test('component manager rejects unsafe URLs, hashes and names before I/O', async () => {
