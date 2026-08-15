@@ -107,7 +107,7 @@ function normalizeRuntime(value) {
   const entrypoint = safeRelativePath(value.entrypoint);
   const args = Array.isArray(value.args) ? value.args.map(String).slice(0, 32) : [];
   if (args.some((arg) => arg.length > 400)) throw new Error('component_runtime_arg_invalid');
-  const command = String(value.command || process.execPath);
+  const command = value.command ? String(value.command) : '';
   if (command.length > 260 || /[\r\n]/.test(command)) throw new Error('component_runtime_command_invalid');
   return { command, entrypoint, args, protocolVersion: String(value.protocolVersion || '1').slice(0, 20) };
 }

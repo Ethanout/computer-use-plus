@@ -22,7 +22,9 @@ class ComponentWorkerManager {
     if (this.workers.size >= this.maxWorkers) throw new Error('component_worker_limit_exceeded');
     const entrypoint = path.resolve(manifest.versionDir, manifest.runtime.entrypoint);
     if (!entrypoint.startsWith(`${path.resolve(manifest.versionDir)}${path.sep}`)) throw new Error('component_runtime_entrypoint_invalid');
-    const command = manifest.runtime.command === process.execPath
+    const command = !manifest.runtime.command
+      ? process.execPath
+      : manifest.runtime.command === process.execPath
       ? process.execPath
       : path.resolve(manifest.versionDir, manifest.runtime.command);
     if (command !== process.execPath && !command.startsWith(`${path.resolve(manifest.versionDir)}${path.sep}`)) throw new Error('component_runtime_command_invalid');
