@@ -34,6 +34,10 @@ OmniParser 适合作为“无 UIA 节点时的视觉候选层”，并支持模�
 
 不要把 OmniParser 放在已命中 shortcut 或 UIA 的前面。检测热路径很快，但 caption 仍比 UIA 慢一个数量级；它的价值主要是覆盖自绘、无文本控件，而不是替代所有结构化接口。
 
+## 接入组件 worker
+
+该 benchmark 只验证本地 Python/CUDA 模型，不会自动把模型加载进 MCP。生产接入应将 Python 环境、权重和 worker 入口作为一个经过 SHA-256 校验的 component manifest 安装，再声明 `runtime.entrypoint`。`ComponentWorkerManager` 负责启动、请求、超时、重启和卸载回收；组件 worker 仍必须把截图解析限制在本地，并通过上层引擎的 UIA/OCR/风险链返回候选，不能直接执行电脑动作。
+
 ## 重跑
 
 基础 MCP 安装不包含这些重量级依赖。使用独立环境运行：
