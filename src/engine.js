@@ -461,6 +461,10 @@ class ComputerEngine {
     if (args.action === 'click') return this.browserDriver.click(browserWindow, args.query || {});
     if (args.action === 'setValue') return this.browserDriver.setValue(browserWindow, args.query || {}, args.value || '');
     if (args.action === 'keys') return this.browserDriver.sendKeys(browserWindow, args.keys || []);
+    if (args.action === 'permission') {
+      if (typeof this.browserDriver.setPermission !== 'function') throw new Error('browser_permissions_unavailable');
+      return this.browserDriver.setPermission(browserWindow, args.origin, args.permission, args.setting);
+    }
     if (args.action === 'stop') { this.browserLauncher?.stop(); this.browserDriver = null; return { ok: true }; }
     throw new Error('invalid_browser_action');
   }

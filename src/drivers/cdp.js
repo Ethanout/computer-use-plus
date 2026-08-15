@@ -148,6 +148,16 @@ class CdpDriver {
     return { ok: true, strategy: 'cdp.input', changed: [] };
   }
 
+  async setPermission(windowId, origin, permission, setting = 'prompt') {
+    const normalizedOrigin = String(origin || '').trim();
+    if (!/^https?:\/\/|^wss?:\/\//i.test(normalizedOrigin)) throw new Error('cdp_permission_origin_invalid');
+    const allowedPermissions = new Set(['geolocation', 'notifications', 'camera', 'microphone', 'clipboard-read', 'clipboard-write']);
+    if (!allowedPermissions.has(String(permission))) throw new Error('cdp_permission_invalid');
+    if (!['granted', 'denied', 'prompt'].includes(String(setting))) throw new Error('cdp_permission_setting_invalid');
+    await this.client.send(this.target(windowId), 'Browser.setPermission', { permission: String(permission), setting: String(setting), origin: normalizedOrigin });
+    return { ok: true, strategy: 'cdp.permission', origin: normalizedOrigin, permission: String(permission), setting: String(setting) };
+  }
+
   async focus(windowId) { await this.client.send(this.target(windowId), 'Page.bringToFront'); return { ok: true }; }
 
   async clickAt(windowId, bounds) {

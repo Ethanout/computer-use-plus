@@ -80,3 +80,18 @@ test('CDP driver waits until the page document is ready', async () => {
   assert.equal(ready.ok, true);
   assert.equal(ready.readyState, 'complete');
 });
+
+test('CDP driver constrains site permission origin and setting', async () => {
+  const calls = [];
+  const client = {
+    async targets() { return [{ id: 'tab', type: 'page', webSocketDebuggerUrl: 'ws://test' }]; },
+    async send(_target, method, params) { calls.push({ method, params }); return {}; }
+  };
+  const driver = new CdpDriver({ client });
+  await driver.listWindows();
+  const result = await driver.setPermission('tab', 'https://example.test', 'notifications', 'denied');
+  assert.equal(result.setting, 'denied');
+  assert.equal(calls.at(-1).method, 'Browser.setPermission');
+  await assert.rejects(() => driver.setPermission('tab', 'file:///secret', 'notifications', 'granted'), /cdp_permission_origin_invalid/);
+  await assert.rejects(() => driver.setPermission('tab', 'https://example.test', 'camera', 'unknown'), /cdp_permission_setting_invalid/);
+});

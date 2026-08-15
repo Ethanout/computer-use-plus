@@ -256,11 +256,15 @@ const TOOLS = [
     inputSchema: {
       type: 'object', required: ['action'],
       properties: {
-        action: { type: 'string', enum: ['launch', 'status', 'list', 'inspect', 'click', 'setValue', 'keys', 'stop'] },
+        action: { type: 'string', enum: ['launch', 'status', 'list', 'inspect', 'click', 'setValue', 'keys', 'permission', 'stop'] },
         executable: { type: 'string', description: '浏览器可执行文件路径；launch 时使用。' },
         profileDir: { type: 'string', description: '仅允许项目数据目录下的独立 profile。' },
         port: { type: 'integer', minimum: 1024, maximum: 65535 }, readyTimeoutMs: { type: 'integer', minimum: 100, maximum: 30000 }, url: { type: 'string' }, window: { type: 'string' },
-        query: { type: 'object', additionalProperties: true }, value: { type: 'string' }, keys: { type: 'array', items: { type: 'object' } }
+        query: { type: 'object', additionalProperties: true }, value: { type: 'string' }, keys: { type: 'array', items: { type: 'object' } },
+        downloadDir: { type: 'string', description: '仅允许项目数据目录下的下载目录。' },
+        origin: { type: 'string', description: 'permission 时的 http(s) 网站 origin。' },
+        permission: { type: 'string', enum: ['geolocation', 'notifications', 'camera', 'microphone', 'clipboard-read', 'clipboard-write'] },
+        setting: { type: 'string', enum: ['granted', 'denied', 'prompt'] }
       }, additionalProperties: false
     }
   }

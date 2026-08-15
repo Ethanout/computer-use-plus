@@ -60,7 +60,7 @@ Use `POST http://127.0.0.1:8765/mcp` with `Authorization: Bearer <token>`. The r
 - `computer.fast`：可选的低延迟 AI 只规划并执行当前动作，不写长期记忆。
 - `computer.shortcut`：由主 AI 显式保存、列出、运行或整理命名动作链；支持单窗口和独立的跨窗口作用域。
 - `computer.execution`：创建、启动应用、查看状态或销毁 Windows 专用执行桌面；`diagnose` 会只读返回该 desktop 的窗口、启动根进程和 Job Object 内存活进程。该桌面不会被切换到用户前台。
-- `computer.browser`：使用项目 `.data` 下的独立浏览器 profile，通过 CDP 页面目标、Accessibility Tree 和 DOM 边界操作公开页面；支持 `launch`、`list`、`inspect`、`click`、`setValue`、`keys` 和 `stop`，不会连接用户现有浏览器 profile。
+- `computer.browser`：使用项目 `.data` 下的独立浏览器 profile，通过 CDP 页面目标、Accessibility Tree 和 DOM 边界操作公开页面；支持 `launch`、`list`、`inspect`、`click`、`setValue`、`keys`、受限 `permission` 和 `stop`，不会连接用户现有浏览器 profile。profile 与下载目录必须位于项目 data 目录；站点权限只接受明确的 http(s) origin 和 `granted`/`denied`/`prompt` 设置。
 
 只向外部 Agent 暴露最低 token 工具面时设置：
 
