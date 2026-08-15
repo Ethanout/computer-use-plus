@@ -1,0 +1,26 @@
+{
+  "name": "computer-use-plus-device-matrix",
+  "profiles": [
+    {
+      "id": "office-integrated-gpu",
+      "device": "office-laptop",
+      "mode": "lightweight",
+      "suite": "edge.json",
+      "platform": "win32"
+    },
+    {
+      "id": "gaming-gpu-local-vision",
+      "device": "gaming-laptop",
+      "mode": "local-enhanced",
+      "suite": "edge.json",
+      "platform": "win32"
+    },
+    {
+      "id": "no-gpu-vm",
+      "device": "vm",
+      "mode": "lightweight",
+      "suite": "edge.json",
+      "platform": "win32"
+    }
+  ]
+}

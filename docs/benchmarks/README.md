@@ -48,6 +48,17 @@ npm run benchmark:windows
 
 ## 模型 Provider
 
+## 多设备/多模式矩阵
+
+矩阵 runner 将办公集显、游戏本和无 GPU VM 等 profile 统一跑过同一组 suite，默认只校验结构，不启动应用：
+
+```powershell
+npm run benchmark:matrix -- docs/benchmarks/matrix.example.json
+npm run benchmark:matrix -- docs/benchmarks/matrix.example.json --execute --output .data/device-matrix.json
+```
+
+`--execute` 必须在每个 profile 已准备独立应用实例、专用桌面和必要模型后使用。结果按 profile 保存真实成功率、P50/P95、MCP 往返、token、截图字节、OCR、shortcut、恢复和失败原因；runner 不读取 API key 文件，也不会自动附着用户当前窗口。
+
 复制并修改 `providers.example.json`，通过 `apiKeyEnv` 引用环境变量，不把 key 写入配置：
 
 ```powershell
