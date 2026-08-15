@@ -345,6 +345,7 @@ PTC runner 直接消费内部结构化事件，不把每一步结果重新发送
 10. [基础完成] 完成受管理浏览器 profile、网页任务、独立登录状态、CDP、下载目录和站点权限的 headless API；`computer.browser` 已限制 profile/download 目录在项目 data 目录、拒绝复用用户 profile，并支持 launch/list/inspect/click/setValue/keys/permission/stop，浏览器异常退出会清理失效 child 引用。暂不实现 GUI 标签页；仍需站点权限审计和长稳测试。
 11. 增加低显存、无 GPU、电池供电、磁盘不足、下载中断、哈希失败、模型不兼容、worker 崩溃、多个 MCP 宿主、PTC 无限循环、脚本越权、Agent 递归、干预 revision 冲突、内部工具越权、任务预算溢出、远程视觉被禁用和许可证不接受等测试。
 12. [runner 完成，真实数据待设备] 新增 `benchmark:matrix`，按显式 device/mode/profile 逐项运行 suite，默认 dry-run，执行时记录真实外部往返、输入输出 token、截图/OCR、成功率、P50/P95、恢复和失败原因，并在每个 profile 后回收 Engine、执行桌面和浏览器。仍需在办公集显设备、8 GB 游戏本和无 GPU VM 上提供独立实例后采集真实数据，再调整自动模式阈值。
+13. [基础设施完成，长时数据待运行] 新增 `benchmark:stability`，只允许无副作用的 `computer.state`/`computer.inspect`，以 iterations 或 durationMs 有界运行，回收 Engine 并报告失败、延迟、RSS/heap 增长和活动句柄；仍需在目标设备执行 1,000 次和 24 小时级别的真实长稳测试。
 
 只有通过“GUI 开工质量门槛”后，才进入桌面阶段：
 

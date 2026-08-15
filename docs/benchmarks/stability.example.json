@@ -1,0 +1,6 @@
+{
+  "iterations": 1000,
+  "maxHeapGrowthBytes": 268435456,
+  "maxActiveHandleGrowth": 20,
+  "task": { "tool": "computer.state", "arguments": {} }
+}

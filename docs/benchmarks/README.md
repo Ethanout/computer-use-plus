@@ -59,6 +59,16 @@ npm run benchmark:matrix -- docs/benchmarks/matrix.example.json --execute --outp
 
 `--execute` 必须在每个 profile 已准备独立应用实例、专用桌面和必要模型后使用。结果按 profile 保存真实成功率、P50/P95、MCP 往返、token、截图字节、OCR、shortcut、恢复和失败原因；runner 不读取 API key 文件，也不会自动附着用户当前窗口。
 
+## 长稳 smoke
+
+对无副作用任务可以运行有界重复测试。runner 只允许 `computer.state` 和 `computer.inspect`，每次运行结束回收 Engine，并记录失败数、平均延迟、P50/P95、RSS/heap 增长和活动句柄数量。它不会自动模拟 24 小时；需要由测试者选择 `durationMs` 或 `iterations`，并在独立实例环境运行。可选的 `maxHeapGrowthBytes` 和 `maxActiveHandleGrowth` 会使超限运行返回失败：
+
+```powershell
+npm run benchmark:stability -- docs/benchmarks/stability.example.json --output .data/stability.json
+```
+
+默认示例为 1,000 次 `computer.state`，没有动作、点击、输入或消息发送能力。
+
 复制并修改 `providers.example.json`，通过 `apiKeyEnv` 引用环境变量，不把 key 写入配置：
 
 ```powershell
