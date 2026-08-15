@@ -29,7 +29,7 @@ test('fast-agent stdio profile serves the compact high-level MCP surface', async
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
     { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'agent.capabilities', arguments: {} } },
-    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'agent.run', arguments: { goal: 'unknown local task', window: 'mock-1', budget: { maxSeconds: 1 } } } },
+    { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'agent.run', arguments: { goal: 'unknown local task', window: 'mock-1', budget: { maxSeconds: 5 } } } },
     { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'agent.internal', arguments: { taskId: 'x', op: 'inspect' } } }
   ]) child.stdin.write(`${JSON.stringify(request)}\n`);
 
