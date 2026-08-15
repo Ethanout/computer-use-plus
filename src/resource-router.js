@@ -27,7 +27,8 @@ class ResourceRouter {
     if (requested !== 'auto') return { strategy: requested, reason: 'explicit', resources: compact(state) };
     if (state.battery?.onBattery && this.batteryPolicy === 'avoid-heavy') return { strategy: 'uia-ocr', reason: 'battery_saver', resources: compact(state) };
     if (state.freeMemoryBytes < this.lowMemoryBytes || Number(state.load1m || 0) > this.lowCpuPercent || (state.gpu?.memoryFreeBytes !== undefined && state.gpu.memoryFreeBytes < 512 * 1024 * 1024)) return { strategy: 'uia-ocr', reason: 'resource_pressure', resources: compact(state) };
-    if (request.visionAvailable && request.isolated) return { strategy: 'uia-omniparser-vision', reason: 'resources_available', resources: compact(state) };
+    const componentReady = request.componentCapabilities === undefined || request.componentCapabilities.some((item) => /omniparser|vision|caption/i.test(String(item)));
+    if (request.visionAvailable && request.isolated && componentReady) return { strategy: 'uia-omniparser-vision', reason: 'resources_available', resources: compact(state) };
     if (request.ocrAvailable) return { strategy: 'uia-ocr', reason: 'local_fallback', resources: compact(state) };
     return { strategy: 'uia', reason: 'deterministic_only', resources: compact(state) };
   }

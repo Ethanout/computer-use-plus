@@ -19,6 +19,16 @@ class ComponentManager {
     return { active: { ...index.active }, installed: fs.readdirSync(this.rootDir, { withFileTypes: true }).filter((item) => item.isDirectory()).map((item) => item.name).sort() };
   }
 
+  activeCapabilities() {
+    const index = readJson(path.join(this.rootDir, 'active.json'), { active: {} });
+    const capabilities = new Set();
+    for (const [id, version] of Object.entries(index.active || {})) {
+      const manifest = readJson(path.join(this.rootDir, id, version, 'manifest.json'), null);
+      for (const capability of manifest?.capabilities || []) capabilities.add(String(capability));
+    }
+    return [...capabilities].sort();
+  }
+
   async install(manifest, options = {}) {
     const item = normalizeManifest(manifest);
     if (item.size > this.maxDownloadBytes) throw new Error('component_size_limit_exceeded');

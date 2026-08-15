@@ -23,6 +23,16 @@ test('component manager installs, activates and uninstalls a verified manifest',
   assert.equal(manager.list().active.ocr, undefined);
 });
 
+test('component manager exposes only capabilities from active verified manifests', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cup-components-cap-'));
+  const manager = new ComponentManager({ rootDir: dir });
+  const payload = Buffer.from('omniparser');
+  const sha256 = crypto.createHash('sha256').update(payload).digest('hex');
+  const fetchImpl = async () => ({ ok: true, status: 200, body: (async function* () { yield payload; })() });
+  await manager.install({ id: 'vision', version: '1', url: 'https://example.test/vision', size: payload.length, sha256, capabilities: ['omniparser-detector', 'caption'] }, { fetch: fetchImpl });
+  assert.deepEqual(manager.activeCapabilities(), ['caption', 'omniparser-detector']);
+});
+
 test('component manager rejects unsafe URLs, hashes and names before I/O', async () => {
   const manager = new ComponentManager({ rootDir: fs.mkdtempSync(path.join(os.tmpdir(), 'cup-components-')) });
   await assert.rejects(() => manager.install({ id: '../x', version: '1', url: 'http://example.invalid/x', size: 1, sha256: '0'.repeat(64) }), /component_name_invalid/);

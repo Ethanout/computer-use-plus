@@ -297,7 +297,7 @@ class ComputerEngine {
     if (!args.window) return { windows: await this.driver.listWindows() };
     const query = args.query || {};
     let elements = [];
-    const route = this.resourceRouter.choose({ mode: args.mode || 'auto', visionAvailable: this.vision.available, ocrAvailable: this.ocr.available, isolated: this.isolated });
+    const route = this.resourceRouter.choose({ mode: args.mode || 'auto', visionAvailable: this.vision.available, ocrAvailable: this.ocr.available, isolated: this.isolated, componentCapabilities: this.components.activeCapabilities?.() });
     let strategy = route.strategy === 'uia-ocr' ? 'uia' : route.strategy;
     if (args.mode === 'vision') {
       elements = await this.inspectVision(args.window, query);
