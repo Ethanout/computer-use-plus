@@ -24,6 +24,16 @@ $env:COMPUTER_USE_PLUS_AI_API_KEY='your-api-key'
 
 `COMPUTER_USE_PLUS_FAST_*` 变量仍兼容，但新配置优先使用不区分用途的 `COMPUTER_USE_PLUS_AI_*` 变量。API key 只在进程内存中使用，不写入 `.data`、日志、MCP 响应或状态输出。
 
+### 隔离 provider worker（可选）
+
+如果希望把 provider 网络请求和 key 解析放到独立进程，可设置：
+
+```powershell
+$env:COMPUTER_USE_PLUS_PROVIDER_WORKER='1'
+```
+
+worker 会读取同一 data 目录中的 provider 配置，并在每次配置 revision 变化后重新加载。父进程只发送目标、快照和参数，不发送 key；worker 的错误只以稳定错误码返回。worker 不可用时不要关闭本地能力，调用方应继续使用 UIA、CDP、OCR、shortcut 或返回 `needs_reasoning`。
+
 ## 用户拒绝时
 
 用户不愿创建文件、提供路径或配置 key 时，必须允许跳过。不要重复索要，也不要因为缺少 key 阻止本地功能；此时快速 AI 和 AI 整理保持关闭，继续使用本地规则。

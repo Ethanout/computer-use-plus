@@ -192,6 +192,15 @@ npm start
 
 支持 OpenAI-compatible chat completions、Responses、Anthropic Messages 和 Gemini function calling。provider 不会直接执行电脑动作，所有动作都经过本地窗口、权限和风险校验。
 
+需要时可把 provider 调用放到独立 Node worker，避免远程 key 和 provider 网络错误进入 MCP 主进程。worker 只从配置文件内部解析 key，父进程 IPC 只传任务参数；未配置 profile 时本地 UIA、OCR、shortcut 和 MCP 仍可用：
+
+```powershell
+$env:COMPUTER_USE_PLUS_PROVIDER_WORKER='1'
+npm start
+```
+
+worker 也可通过 `new ComputerEngine({ providerWorker: true })` 启用。它支持 ready 握手、协议版本校验、请求超时、崩溃限次重启和关闭时 pending 请求回收。状态只返回 provider 的公开元数据（model、protocol、是否已配置），不会回显 key 或 key 文件路径。
+
 本地 action-ID 路由支持注入可选分类器。确定性的名称、ID 和别名匹配始终优先；只有未命中时才调用分类器。分类器只能从当前窗口作用域已有 shortcut 中返回一个 ID，默认置信度阈值为 `0.85`，未知 ID 或低置信度结果会被拒绝并回退到快速 AI/常规观察。`computer.state.metrics` 会记录 `classifierCalls`、`classifierHits` 和 `classifierLatencyMs`。
 
 ## Benchmark

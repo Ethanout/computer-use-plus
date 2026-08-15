@@ -22,6 +22,7 @@ class WorkerSupervisor {
     this.restartTimer = null;
     this.pending = new Map();
     this.requestSequence = 0;
+    this.workerStatus = null;
   }
 
   async start() {
@@ -58,6 +59,7 @@ class WorkerSupervisor {
           return;
         }
         this.started = true;
+        this.workerStatus = message.status && typeof message.status === 'object' ? { ...message.status } : null;
         this.lastError = null;
         if (!settled) { settled = true; clearTimeout(timer); resolve(this.status()); }
       });
@@ -65,6 +67,7 @@ class WorkerSupervisor {
         const expected = this.stopping;
         this.child = null;
         this.started = false;
+        this.workerStatus = null;
         for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error('worker_restarted')); }
         this.pending.clear();
         if (!settled) {
@@ -118,7 +121,8 @@ class WorkerSupervisor {
       protocolVersion: this.protocolVersion,
       restartCount: this.restartCount,
       maxRestarts: this.maxRestarts,
-      lastError: this.lastError
+      lastError: this.lastError,
+      workerStatus: this.workerStatus ? { ...this.workerStatus } : null
     };
   }
 

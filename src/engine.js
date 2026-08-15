@@ -21,6 +21,7 @@ const { ScriptRunner } = require('./script-runner');
 const { ComponentManager } = require('./component-manager');
 const { ResourceRouter } = require('./resource-router');
 const { VisualAliasStore } = require('./visual-alias');
+const { ProviderWorkerClient } = require('./provider-worker-client');
 
 function sleep(ms, signal = null) {
   if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,14 +67,18 @@ class ComputerEngine {
     this.ocr = options.ocr || new OcrDriver();
     this.memory = options.memory || new MemoryStore(path.join(dataDir, 'ui-memory.json'));
     this.providerConfig = options.providerConfig || new ProviderConfigStore(path.join(dataDir, 'providers.json'));
+    const useProviderWorker = options.providerWorker === true || process.env.COMPUTER_USE_PLUS_PROVIDER_WORKER === '1';
     const activeProvider = options.fastAiOptions || this.providerConfig.resolve();
-    this.fastAi = options.fastAi || new FastAiClient(activeProvider || {});
+    this.fastAi = options.fastAi || (useProviderWorker
+      ? new ProviderWorkerClient({ dataDir: this.dataDir, configFile: this.providerConfig.filePath, configStore: this.providerConfig, ...(options.providerWorkerOptions || {}) })
+      : new FastAiClient(activeProvider || {}));
     this.ptc = options.ptc || new PtcRunner(this);
     this.scriptRunner = options.scriptRunner || new ScriptRunner(this, { dataDir: this.dataDir });
     this.components = options.components || new ComponentManager({ dataDir: this.dataDir });
     this.resourceRouter = options.resourceRouter || new ResourceRouter(options.resourceRouterOptions);
     this.visualAliases = options.visualAliases || new VisualAliasStore(path.join(this.dataDir, 'visual-aliases.json'));
-    this.providerManaged = !options.fastAi;
+    this.providerManaged = !options.fastAi && !useProviderWorker;
+    this.providerWorker = useProviderWorker && !options.fastAi;
     this.providerRevision = this.providerConfig.read().revision;
     this.actionClassifier = options.actionClassifier === false ? null : (options.actionClassifier || new LocalActionIdClassifier());
     this.actionClassifierThreshold = Number(options.actionClassifierThreshold || process.env.COMPUTER_USE_PLUS_ACTION_CLASSIFIER_THRESHOLD || 0.85);
@@ -125,6 +130,7 @@ class ComputerEngine {
   async close() {
     if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
     if (this.providerReloadTimer) clearInterval(this.providerReloadTimer);
+    if (this.providerWorker && typeof this.fastAi.close === 'function') await this.fastAi.close();
   }
 
   async runMaintenance() {
